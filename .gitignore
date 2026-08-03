@@ -1,0 +1,39 @@
+# Personal dev environment notes (instance IDs, IPs, costs)
+docs/DEV_ENVIRONMENT.md
+
+# Build artifacts
+build/
+cmake-build-*/
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+wheelhouse/
+
+# Native extension output
+python/cuda_db/_native/*
+!python/cuda_db/_native/.gitkeep
+
+# Benchmark results
+benchmarks/results/*
+!benchmarks/results/.gitkeep
+
+# ONNX Runtime downloads
+onnxruntime-linux-*/
+onnxruntime-gpu.tgz
+
+# Models (large binaries)
+models/*.onnx
+
+# Editor/OS
+.DS_Store
+.vscode/
+.idea/
