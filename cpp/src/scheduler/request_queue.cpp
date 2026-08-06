@@ -56,4 +56,35 @@ std::vector<InferenceRequest> RequestQueue::wait_and_drain(std::size_t max_batch
     return batch;
 }
 
+/**
+ * @brief Signals shutdown and wakes any blocked waiter.
+ * @details Sets the internal stop flag under lock, then notifies all
+ * waiters. Does not clear or drain the queue -- any items still enqueued
+ * remain there so a subsequent wait_and_drain() call can still retrieve
+ * them; this only unblocks threads currently waiting so they can check the
+ * stop condition and drain whatever remains.
+ */
+void RequestQueue::shutdown() {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stop_requested_ = true;
+    }
+    cv_.notify_all();
+}
+
+/**
+ * @brief Returns the current number of queued requests.
+ * @details Snapshot only -- by the time the caller observes the returned
+ * value, concurrent push()/wait_and_drain() calls on other threads may have
+ * already changed it. Intended for tests and observability, not for
+ * synchronization decisions.
+ *
+ * @return std::size_t Number of requests in the queue at the moment the
+ * lock was held.
+ */
+std::size_t RequestQueue::size() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return queue_.size();
+}
+
 }
