@@ -11,6 +11,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(cuda_db_tests
     test_request_queue.cpp
+    test_scheduler.cpp
 )
 
 target_link_libraries(cuda_db_tests PRIVATE

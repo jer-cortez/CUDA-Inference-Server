@@ -2,6 +2,7 @@
 # Those get added to this file as later milestones land.
 add_library(cuda_db_core STATIC
     src/scheduler/request_queue.cpp
+    src/scheduler/scheduler.cpp
 )
 
 target_include_directories(cuda_db_core PUBLIC
