@@ -1,8 +1,10 @@
 #include "cuda_db/scheduler/scheduler.hpp"
 
 #include <algorithm>
+#include <cstdint>
+#include <exception>
 
-namespace cuda_db { 
+namespace cuda_db {
 
 /**
  * @brief Constructs a Scheduler bound to a given engine and configuration.
@@ -70,6 +72,23 @@ std::future<InferenceResult> Scheduler::submit(InferenceRequest&& request) {
 }
 
 /**
+ * @brief Returns a snapshot of the batching counters.
+ * @details Each counter is read independently, so the three values may not
+ * correspond to the exact same instant if the worker is mid-batch. That is
+ * acceptable: these are observability counters, not a transactional view.
+ *
+ * @return SchedulerStats Batches processed, requests processed, and the
+ * largest batch seen so far.
+ */
+SchedulerStats Scheduler::stats() const {
+    SchedulerStats snapshot;
+    snapshot.total_batches = total_batches_.load(std::memory_order_relaxed);
+    snapshot.total_requests = total_requests_.load(std::memory_order_relaxed);
+    snapshot.max_batch_size_seen = max_batch_size_seen_.load(std::memory_order_relaxed);
+    return snapshot;
+}
+
+/**
  * @brief Worker thread body: repeatedly batches and processes requests.
  * @details Runs until stop() has been called AND the queue is fully
  * drained -- an empty batch alone is not sufficient to exit, since it may
@@ -77,7 +96,12 @@ std::future<InferenceResult> Scheduler::submit(InferenceRequest&& request) {
  * This ordering guarantees requests queued just before shutdown are still
  * processed rather than silently dropped.
  *
- * For each non-empty batch: concatenates the batch's inputs into one
+ * Each drained request is first checked against `config_.input_elems`. A
+ * mis-sized input is failed immediately and dropped from the batch, because
+ * concatenating it would shift every following row's slice boundary and
+ * silently corrupt other callers' results.
+ *
+ * For each surviving batch: concatenates the batch's inputs into one
  * contiguous buffer (request `i`'s input occupies input-row `i`), calls the
  * engine, then slices output-row `i` back out for request `i` and resolves
  * its promise. If the engine call throws, every request in the batch has
@@ -85,13 +109,35 @@ std::future<InferenceResult> Scheduler::submit(InferenceRequest&& request) {
  * on a future that will never resolve.
  */
 void Scheduler::run_loop() {
-    while (true) { 
-        std::vector<InferenceRequest> batch = queue_.wait_and_drain(config_.max_batch_size, config_.max_wait);
-        if (batch.empty()) { 
-            if (!running_) { 
+    while (true) {
+        std::vector<InferenceRequest> drained = queue_.wait_and_drain(config_.max_batch_size, config_.max_wait);
+        if (drained.empty()) {
+            if (!running_) {
                 break;
             }
             continue;
+        }
+
+        std::vector<InferenceRequest> batch;
+        batch.reserve(drained.size());
+        for (InferenceRequest& req : drained) {
+            if (req.input_data.size() != config_.input_elems) {
+                req.result_promise.set_exception(std::make_exception_ptr(
+                    InferenceError("input size does not match configured input_elems")));
+                continue;
+            }
+            batch.push_back(std::move(req));
+        }
+        if (batch.empty()) {
+            continue;
+        }
+
+        total_batches_.fetch_add(1, std::memory_order_relaxed);
+        total_requests_.fetch_add(batch.size(), std::memory_order_relaxed);
+        std::uint64_t previous_max = max_batch_size_seen_.load(std::memory_order_relaxed);
+        while (batch.size() > previous_max &&
+               !max_batch_size_seen_.compare_exchange_weak(previous_max, batch.size(),
+                                                            std::memory_order_relaxed)) {
         }
 
         std::vector<float> batched_input;
@@ -104,6 +150,10 @@ void Scheduler::run_loop() {
         try {
             std::vector<float> batched_output = engine_->run_inference(
                 batched_input, batch.size(), config_.input_elems, config_.output_elems);
+
+            if (batched_output.size() != batch.size() * config_.output_elems) {
+                throw InferenceError("engine returned an unexpected output size");
+            }
 
             for (std::size_t i = 0; i < batch.size(); ++i) {
                 InferenceResult result;

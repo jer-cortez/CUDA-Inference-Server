@@ -13,26 +13,10 @@ using namespace std::chrono_literals;
 
 namespace {
 
-// Minimal throwaway IExecutionEngine implementation used only by these
-// tests. Does no real inference -- just echoes the first `output_elems`
-// floats of each input row (zero-padded if input_elems < output_elems) --
-// so Scheduler's batching/threading/promise-resolution logic can be
-// exercised without a GPU or ONNX Runtime.
-class FakeExecutionEngine : public IExecutionEngine {
-public:
-    std::vector<float> run_inference(const std::vector<float>& batched_input,
-                                      std::size_t batch_size,
-                                      std::size_t input_elems,
-                                      std::size_t output_elems) override {
-        std::vector<float> output(batch_size * output_elems, 0.0f);
-        for (std::size_t i = 0; i < batch_size; ++i) {
-            const std::size_t copy_count = std::min(input_elems, output_elems);
-            std::copy_n(batched_input.begin() + i * input_elems, copy_count,
-                        output.begin() + i * output_elems);
-        }
-        return output;
-    }
-};
+// These tests drive the real StubExecutionEngine (echoes each input row into
+// the corresponding output row, zero-padded), so Scheduler's
+// batching/threading/promise-resolution logic is exercised against the same
+// engine the served path uses -- without needing a GPU or ONNX Runtime.
 
 // Always throws, to exercise Scheduler's exception-propagation path.
 class ThrowingExecutionEngine : public IExecutionEngine {
@@ -58,7 +42,7 @@ InferenceRequest make_request(std::uint64_t id, float value) {
 // -- this is what catches an off-by-one in the batch-row <-> request
 // mapping inside run_loop().
 TEST(SchedulerTest, ResolvesEachFutureWithMatchingRequestId) {
-    auto engine = std::make_shared<FakeExecutionEngine>();
+    auto engine = std::make_shared<StubExecutionEngine>();
     SchedulerConfig config;
     config.max_batch_size = 4;
     config.max_wait = 50ms;
@@ -87,7 +71,7 @@ TEST(SchedulerTest, ResolvesEachFutureWithMatchingRequestId) {
 // be reached -- the request should still resolve once max_wait elapses,
 // proving the timeout trigger works independently of the size trigger.
 TEST(SchedulerTest, BatchesWithinTimeoutEvenBelowMaxBatchSize) {
-    auto engine = std::make_shared<FakeExecutionEngine>();
+    auto engine = std::make_shared<StubExecutionEngine>();
     SchedulerConfig config;
     config.max_batch_size = 100;  // never reached in this test
     config.max_wait = 20ms;
@@ -133,7 +117,7 @@ TEST(SchedulerTest, EngineExceptionPropagatesToAllFuturesInBatch) {
 // and complete, rather than dropping them (the shutdown-drain guarantee
 // discussed for run_loop()).
 TEST(SchedulerTest, PendingRequestsCompleteAcrossStop) {
-    auto engine = std::make_shared<FakeExecutionEngine>();
+    auto engine = std::make_shared<StubExecutionEngine>();
     SchedulerConfig config;
     config.max_batch_size = 100;  // relies on the timeout, not size, to drain
     config.max_wait = 20ms;
@@ -150,4 +134,76 @@ TEST(SchedulerTest, PendingRequestsCompleteAcrossStop) {
     InferenceResult result = future.get();
     EXPECT_EQ(result.request_id, 9u);
     EXPECT_FLOAT_EQ(result.logits[0], 42.0f);
+}
+
+// The batching counters are what /healthz and the benchmark harness read to
+// show requests actually coalesced. Submitting a full batch's worth of
+// requests up front should produce far fewer batches than requests.
+TEST(SchedulerTest, StatsCountBatchesAndRequests) {
+    auto engine = std::make_shared<StubExecutionEngine>();
+    SchedulerConfig config;
+    config.max_batch_size = 8;
+    config.max_wait = 50ms;
+    config.input_elems = 1;
+    config.output_elems = 1;
+
+    Scheduler scheduler(engine, config);
+
+    SchedulerStats before = scheduler.stats();
+    EXPECT_EQ(before.total_batches, 0u);
+    EXPECT_EQ(before.total_requests, 0u);
+    EXPECT_EQ(before.max_batch_size_seen, 0u);
+
+    scheduler.start();
+
+    std::vector<std::future<InferenceResult>> futures;
+    for (std::uint64_t id = 0; id < 8; ++id) {
+        futures.push_back(scheduler.submit(make_request(id, 1.0f)));
+    }
+    for (auto& future : futures) {
+        future.get();
+    }
+    scheduler.stop();
+
+    SchedulerStats after = scheduler.stats();
+    EXPECT_EQ(after.total_requests, 8u);
+    EXPECT_GE(after.total_batches, 1u);
+    EXPECT_LE(after.total_batches, 8u);
+    EXPECT_GE(after.max_batch_size_seen, 1u);
+    EXPECT_LE(after.max_batch_size_seen, 8u);
+}
+
+// A request whose input length disagrees with config_.input_elems must be
+// failed and dropped rather than concatenated -- otherwise it would shift
+// every following row's slice boundary and silently corrupt the results of
+// well-formed requests sharing its batch.
+TEST(SchedulerTest, MisSizedRequestFailsWithoutCorruptingBatchMates) {
+    auto engine = std::make_shared<StubExecutionEngine>();
+    SchedulerConfig config;
+    config.max_batch_size = 3;
+    config.max_wait = 50ms;
+    config.input_elems = 1;
+    config.output_elems = 1;
+
+    Scheduler scheduler(engine, config);
+    scheduler.start();
+
+    InferenceRequest bad = make_request(2, 0.0f);
+    bad.input_data = {1.0f, 2.0f};  // two floats where one is expected
+
+    auto future_a = scheduler.submit(make_request(1, 11.0f));
+    auto future_bad = scheduler.submit(std::move(bad));
+    auto future_c = scheduler.submit(make_request(3, 33.0f));
+
+    EXPECT_THROW(future_bad.get(), InferenceError);
+
+    InferenceResult result_a = future_a.get();
+    EXPECT_EQ(result_a.request_id, 1u);
+    EXPECT_FLOAT_EQ(result_a.logits[0], 11.0f);
+
+    InferenceResult result_c = future_c.get();
+    EXPECT_EQ(result_c.request_id, 3u);
+    EXPECT_FLOAT_EQ(result_c.logits[0], 33.0f);
+
+    scheduler.stop();
 }

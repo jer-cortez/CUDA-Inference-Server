@@ -18,9 +18,10 @@ __pycache__/
 dist/
 wheelhouse/
 
-# Native extension output
+# Native extension output (the .so is built, __init__.py is source)
 python/cuda_db/_native/*
 !python/cuda_db/_native/.gitkeep
+!python/cuda_db/_native/__init__.py
 
 # Benchmark results
 benchmarks/results/*

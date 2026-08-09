@@ -1,0 +1,38 @@
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "cuda-db"
+version = "0.1.0"
+description = "Dynamic-batching inference server with a C++/CUDA scheduler"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "pydantic>=2.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+]
+
+[tool.scikit-build]
+wheel.packages = ["python/cuda_db"]
+build-dir = "build/{wheel_tag}"
+cmake.version = ">=3.24"
+
+[tool.scikit-build.cmake.define]
+# The extension is what we're here to build; the gtest suite has its own
+# plain-CMake loop (see scripts/build.sh) and pulling googletest in here would
+# only slow the wheel build down.
+CUDA_DB_BUILD_PYTHON = "ON"
+CUDA_DB_BUILD_TESTS = "OFF"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
