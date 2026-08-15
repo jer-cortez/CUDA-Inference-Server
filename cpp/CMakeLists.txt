@@ -17,10 +17,13 @@ target_compile_features(cuda_db_core PUBLIC cxx_std_17)
 find_package(Threads REQUIRED)
 target_link_libraries(cuda_db_core PUBLIC Threads::Threads)
 
-# Memory primitives and the stream pool are plain .cpp compiled against the
-# CUDA Runtime headers, not .cu -- only actual kernels (a later milestone) go
-# through nvcc, which keeps incremental build times down. Guarded so a
-# machine with no CUDAToolkit (e.g. the Mac dev loop) never sees these.
+# Memory primitives, the stream pool, and the CUDA engine are plain .cpp
+# compiled against the CUDA Runtime headers; only files containing __global__
+# code (normalize.cu) go through nvcc, which keeps incremental build times
+# down. CMake routes .cu sources to nvcc automatically once CudaTargets.cmake
+# has called enable_language(CUDA), so no separate kernels library is needed.
+# Guarded so a machine with no CUDAToolkit (e.g. the Mac dev loop) never sees
+# these.
 if(CUDA_DB_ENABLE_CUDA)
     include(CudaTargets)
 
@@ -29,6 +32,8 @@ if(CUDA_DB_ENABLE_CUDA)
         src/memory/pinned_buffer.cpp
         src/memory/memory_pool.cpp
         src/kernels/cuda_stream_pool.cpp
+        src/kernels/normalize.cu
+        src/engine/cuda_execution_engine.cpp
     )
     cuda_db_enable_cuda(cuda_db_core)
 endif()

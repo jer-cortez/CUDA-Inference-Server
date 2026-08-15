@@ -15,7 +15,10 @@ add_executable(cuda_db_tests
 )
 
 if(CUDA_DB_ENABLE_CUDA)
-    target_sources(cuda_db_tests PRIVATE test_memory_pool.cpp)
+    target_sources(cuda_db_tests PRIVATE
+        test_memory_pool.cpp
+        test_kernels.cu
+    )
 endif()
 
 target_link_libraries(cuda_db_tests PRIVATE
