@@ -17,6 +17,22 @@ target_compile_features(cuda_db_core PUBLIC cxx_std_17)
 find_package(Threads REQUIRED)
 target_link_libraries(cuda_db_core PUBLIC Threads::Threads)
 
+# Memory primitives and the stream pool are plain .cpp compiled against the
+# CUDA Runtime headers, not .cu -- only actual kernels (a later milestone) go
+# through nvcc, which keeps incremental build times down. Guarded so a
+# machine with no CUDAToolkit (e.g. the Mac dev loop) never sees these.
+if(CUDA_DB_ENABLE_CUDA)
+    include(CudaTargets)
+
+    target_sources(cuda_db_core PRIVATE
+        src/memory/device_buffer.cpp
+        src/memory/pinned_buffer.cpp
+        src/memory/memory_pool.cpp
+        src/kernels/cuda_stream_pool.cpp
+    )
+    cuda_db_enable_cuda(cuda_db_core)
+endif()
+
 if(CUDA_DB_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
@@ -25,13 +41,7 @@ endif()
 # on a machine with no Python development headers. scikit-build-core turns it
 # on (see pyproject.toml).
 if(CUDA_DB_BUILD_PYTHON)
-    include(FetchContent)
-    FetchContent_Declare(
-        pybind11
-        GIT_REPOSITORY https://github.com/pybind/pybind11.git
-        GIT_TAG v2.13.6  # first release series with Python 3.13 support
-    )
-    FetchContent_MakeAvailable(pybind11)
+    include(Pybind11Deps)
 
     pybind11_add_module(cuda_db_native src/bindings/module.cpp)
     target_link_libraries(cuda_db_native PRIVATE cuda_db_core)

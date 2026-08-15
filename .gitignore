@@ -3,6 +3,7 @@ docs/DEV_ENVIRONMENT.md
 
 # Build artifacts
 build/
+build-*/
 cmake-build-*/
 *.o
 *.obj

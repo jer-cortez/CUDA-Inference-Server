@@ -14,6 +14,10 @@ add_executable(cuda_db_tests
     test_scheduler.cpp
 )
 
+if(CUDA_DB_ENABLE_CUDA)
+    target_sources(cuda_db_tests PRIVATE test_memory_pool.cpp)
+endif()
+
 target_link_libraries(cuda_db_tests PRIVATE
     cuda_db_core
     GTest::gtest_main
