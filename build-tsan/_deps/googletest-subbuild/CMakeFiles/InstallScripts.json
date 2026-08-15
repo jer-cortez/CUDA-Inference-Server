@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

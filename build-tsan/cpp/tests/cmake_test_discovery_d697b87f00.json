@@ -1,0 +1,103 @@
+{
+  "tests": 17,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "RequestQueueTest",
+      "tests": 8,
+      "testsuite": [
+        {
+          "name": "DrainsAsSoonAsBatchSizeReached",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_request_queue.cpp",
+          "line": 26
+        },
+        {
+          "name": "TimesOutAndReturnsPartialBatch",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_request_queue.cpp",
+          "line": 43
+        },
+        {
+          "name": "BatchWindowStartsAtFirstArrival",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_request_queue.cpp",
+          "line": 59
+        },
+        {
+          "name": "ZeroTimeoutReturnsFirstArrivalImmediately",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_request_queue.cpp",
+          "line": 82
+        },
+        {
+          "name": "WaitsWhenEmptyThenReceivesPush",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_request_queue.cpp",
+          "line": 103
+        },
+        {
+          "name": "ShutdownUnblocksWaiter",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_request_queue.cpp",
+          "line": 120
+        },
+        {
+          "name": "SizeReflectsQueuedItemsWithoutDraining",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_request_queue.cpp",
+          "line": 139
+        },
+        {
+          "name": "ConcurrentPushesAreAllDelivered",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_request_queue.cpp",
+          "line": 156
+        }
+      ]
+    },
+    {
+      "name": "SchedulerTest",
+      "tests": 9,
+      "testsuite": [
+        {
+          "name": "ResolvesEachFutureWithMatchingRequestId",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 50
+        },
+        {
+          "name": "BatchesWithinTimeoutEvenBelowMaxBatchSize",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 79
+        },
+        {
+          "name": "EngineExceptionPropagatesToAllFuturesInBatch",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 102
+        },
+        {
+          "name": "PendingRequestsCompleteAcrossStop",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 125
+        },
+        {
+          "name": "StatsCountBatchesAndRequests",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 148
+        },
+        {
+          "name": "QueueWaitLatencyIsRecorded",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 186
+        },
+        {
+          "name": "LatencyStatsAreZeroBeforeFirstRequest",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 211
+        },
+        {
+          "name": "IdleSchedulerDoesNotSpin",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 228
+        },
+        {
+          "name": "MisSizedRequestFailsWithoutCorruptingBatchMates",
+          "file": "\/Users\/jeremycortez\/Desktop\/cpp_projects\/cuda_db\/cpp\/tests\/test_scheduler.cpp",
+          "line": 276
+        }
+      ]
+    }
+  ]
+}

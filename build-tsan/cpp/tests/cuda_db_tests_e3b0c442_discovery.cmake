@@ -1,0 +1,20 @@
+include("/opt/homebrew/share/cmake/Modules/GoogleTestAddTests.cmake")
+gtest_discover_tests_impl(
+  TEST_TARGET [==[cuda_db_tests]==]
+  TEST_EXECUTABLE [==[/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests]==]
+  TEST_EXECUTOR [==[]==]
+  TEST_WORKING_DIR [==[/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests]==]
+  TEST_EXTRA_ARGS [==[]==]
+  TEST_PROPERTIES [==[]==]
+  TEST_PREFIX [==[]==]
+  TEST_SUFFIX [==[]==]
+  TEST_FILTER [==[]==]
+  NO_PRETTY_TYPES [==[FALSE]==]
+  NO_PRETTY_VALUES [==[FALSE]==]
+  TEST_LIST [==[cuda_db_tests_TESTS]==]
+  CTEST_FILE [==[/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests_e3b0c442_tests.cmake]==]
+  TEST_DISCOVERY_TIMEOUT [==[5]==]
+  TEST_DISCOVERY_EXTRA_ARGS [==[]==]
+  TEST_XML_OUTPUT_DIR [==[]==]
+  TEST_JSON_OUTPUT_DIR [==[/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests]==]
+)

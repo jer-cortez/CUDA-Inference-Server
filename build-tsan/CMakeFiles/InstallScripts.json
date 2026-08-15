@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cmake_install.cmake",
+		"/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/cmake_install.cmake",
+		"/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cmake_install.cmake",
+		"/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-build/cmake_install.cmake",
+		"/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-build/googlemock/cmake_install.cmake",
+		"/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-build/googletest/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

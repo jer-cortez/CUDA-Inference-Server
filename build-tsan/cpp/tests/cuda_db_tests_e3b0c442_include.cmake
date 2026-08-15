@@ -1,0 +1,5 @@
+if(EXISTS "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests_e3b0c442_tests.cmake")
+  include("/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests_e3b0c442_tests.cmake")
+else()
+  add_test(cuda_db_tests_NOT_BUILT cuda_db_tests_NOT_BUILT)
+endif()

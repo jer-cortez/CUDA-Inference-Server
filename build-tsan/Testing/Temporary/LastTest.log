@@ -1,0 +1,462 @@
+Start testing: Aug 14 21:30 EDT
+----------------------------------------------------------
+1/17 Testing: RequestQueueTest.DrainsAsSoonAsBatchSizeReached
+1/17 Test: RequestQueueTest.DrainsAsSoonAsBatchSizeReached
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=RequestQueueTest.DrainsAsSoonAsBatchSizeReached" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"RequestQueueTest.DrainsAsSoonAsBatchSizeReached" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = RequestQueueTest.DrainsAsSoonAsBatchSizeReached
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RequestQueueTest
+[ RUN      ] RequestQueueTest.DrainsAsSoonAsBatchSizeReached
+[       OK ] RequestQueueTest.DrainsAsSoonAsBatchSizeReached (0 ms)
+[----------] 1 test from RequestQueueTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.17 sec
+----------------------------------------------------------
+Test Passed.
+"RequestQueueTest.DrainsAsSoonAsBatchSizeReached" end time: Aug 14 21:30 EDT
+"RequestQueueTest.DrainsAsSoonAsBatchSizeReached" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/17 Testing: RequestQueueTest.TimesOutAndReturnsPartialBatch
+2/17 Test: RequestQueueTest.TimesOutAndReturnsPartialBatch
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=RequestQueueTest.TimesOutAndReturnsPartialBatch" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"RequestQueueTest.TimesOutAndReturnsPartialBatch" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = RequestQueueTest.TimesOutAndReturnsPartialBatch
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RequestQueueTest
+[ RUN      ] RequestQueueTest.TimesOutAndReturnsPartialBatch
+[       OK ] RequestQueueTest.TimesOutAndReturnsPartialBatch (25 ms)
+[----------] 1 test from RequestQueueTest (25 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (25 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.20 sec
+----------------------------------------------------------
+Test Passed.
+"RequestQueueTest.TimesOutAndReturnsPartialBatch" end time: Aug 14 21:30 EDT
+"RequestQueueTest.TimesOutAndReturnsPartialBatch" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/17 Testing: RequestQueueTest.BatchWindowStartsAtFirstArrival
+3/17 Test: RequestQueueTest.BatchWindowStartsAtFirstArrival
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=RequestQueueTest.BatchWindowStartsAtFirstArrival" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"RequestQueueTest.BatchWindowStartsAtFirstArrival" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = RequestQueueTest.BatchWindowStartsAtFirstArrival
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RequestQueueTest
+[ RUN      ] RequestQueueTest.BatchWindowStartsAtFirstArrival
+[       OK ] RequestQueueTest.BatchWindowStartsAtFirstArrival (58 ms)
+[----------] 1 test from RequestQueueTest (58 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (58 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.22 sec
+----------------------------------------------------------
+Test Passed.
+"RequestQueueTest.BatchWindowStartsAtFirstArrival" end time: Aug 14 21:30 EDT
+"RequestQueueTest.BatchWindowStartsAtFirstArrival" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/17 Testing: RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately
+4/17 Test: RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RequestQueueTest
+[ RUN      ] RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately
+[       OK ] RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately (21 ms)
+[----------] 1 test from RequestQueueTest (21 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (21 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.19 sec
+----------------------------------------------------------
+Test Passed.
+"RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately" end time: Aug 14 21:30 EDT
+"RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/17 Testing: RequestQueueTest.WaitsWhenEmptyThenReceivesPush
+5/17 Test: RequestQueueTest.WaitsWhenEmptyThenReceivesPush
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=RequestQueueTest.WaitsWhenEmptyThenReceivesPush" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"RequestQueueTest.WaitsWhenEmptyThenReceivesPush" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = RequestQueueTest.WaitsWhenEmptyThenReceivesPush
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RequestQueueTest
+[ RUN      ] RequestQueueTest.WaitsWhenEmptyThenReceivesPush
+[       OK ] RequestQueueTest.WaitsWhenEmptyThenReceivesPush (12 ms)
+[----------] 1 test from RequestQueueTest (12 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (12 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.18 sec
+----------------------------------------------------------
+Test Passed.
+"RequestQueueTest.WaitsWhenEmptyThenReceivesPush" end time: Aug 14 21:30 EDT
+"RequestQueueTest.WaitsWhenEmptyThenReceivesPush" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/17 Testing: RequestQueueTest.ShutdownUnblocksWaiter
+6/17 Test: RequestQueueTest.ShutdownUnblocksWaiter
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=RequestQueueTest.ShutdownUnblocksWaiter" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"RequestQueueTest.ShutdownUnblocksWaiter" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = RequestQueueTest.ShutdownUnblocksWaiter
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RequestQueueTest
+[ RUN      ] RequestQueueTest.ShutdownUnblocksWaiter
+[       OK ] RequestQueueTest.ShutdownUnblocksWaiter (12 ms)
+[----------] 1 test from RequestQueueTest (12 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (12 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.18 sec
+----------------------------------------------------------
+Test Passed.
+"RequestQueueTest.ShutdownUnblocksWaiter" end time: Aug 14 21:30 EDT
+"RequestQueueTest.ShutdownUnblocksWaiter" time elapsed: 00:00:00
+----------------------------------------------------------
+
+7/17 Testing: RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining
+7/17 Test: RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RequestQueueTest
+[ RUN      ] RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining
+[       OK ] RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining (0 ms)
+[----------] 1 test from RequestQueueTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.17 sec
+----------------------------------------------------------
+Test Passed.
+"RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining" end time: Aug 14 21:30 EDT
+"RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining" time elapsed: 00:00:00
+----------------------------------------------------------
+
+8/17 Testing: RequestQueueTest.ConcurrentPushesAreAllDelivered
+8/17 Test: RequestQueueTest.ConcurrentPushesAreAllDelivered
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=RequestQueueTest.ConcurrentPushesAreAllDelivered" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"RequestQueueTest.ConcurrentPushesAreAllDelivered" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = RequestQueueTest.ConcurrentPushesAreAllDelivered
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RequestQueueTest
+[ RUN      ] RequestQueueTest.ConcurrentPushesAreAllDelivered
+[       OK ] RequestQueueTest.ConcurrentPushesAreAllDelivered (4 ms)
+[----------] 1 test from RequestQueueTest (4 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (4 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.17 sec
+----------------------------------------------------------
+Test Passed.
+"RequestQueueTest.ConcurrentPushesAreAllDelivered" end time: Aug 14 21:30 EDT
+"RequestQueueTest.ConcurrentPushesAreAllDelivered" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/17 Testing: SchedulerTest.ResolvesEachFutureWithMatchingRequestId
+9/17 Test: SchedulerTest.ResolvesEachFutureWithMatchingRequestId
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.ResolvesEachFutureWithMatchingRequestId" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.ResolvesEachFutureWithMatchingRequestId" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.ResolvesEachFutureWithMatchingRequestId
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.ResolvesEachFutureWithMatchingRequestId
+[       OK ] SchedulerTest.ResolvesEachFutureWithMatchingRequestId (0 ms)
+[----------] 1 test from SchedulerTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.17 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.ResolvesEachFutureWithMatchingRequestId" end time: Aug 14 21:30 EDT
+"SchedulerTest.ResolvesEachFutureWithMatchingRequestId" time elapsed: 00:00:00
+----------------------------------------------------------
+
+10/17 Testing: SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize
+10/17 Test: SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize
+[       OK ] SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize (25 ms)
+[----------] 1 test from SchedulerTest (25 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (25 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.19 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize" end time: Aug 14 21:30 EDT
+"SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize" time elapsed: 00:00:00
+----------------------------------------------------------
+
+11/17 Testing: SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch
+11/17 Test: SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch
+[       OK ] SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch (1 ms)
+[----------] 1 test from SchedulerTest (1 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (1 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.17 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch" end time: Aug 14 21:30 EDT
+"SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch" time elapsed: 00:00:00
+----------------------------------------------------------
+
+12/17 Testing: SchedulerTest.PendingRequestsCompleteAcrossStop
+12/17 Test: SchedulerTest.PendingRequestsCompleteAcrossStop
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.PendingRequestsCompleteAcrossStop" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.PendingRequestsCompleteAcrossStop" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.PendingRequestsCompleteAcrossStop
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.PendingRequestsCompleteAcrossStop
+[       OK ] SchedulerTest.PendingRequestsCompleteAcrossStop (0 ms)
+[----------] 1 test from SchedulerTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.17 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.PendingRequestsCompleteAcrossStop" end time: Aug 14 21:30 EDT
+"SchedulerTest.PendingRequestsCompleteAcrossStop" time elapsed: 00:00:00
+----------------------------------------------------------
+
+13/17 Testing: SchedulerTest.StatsCountBatchesAndRequests
+13/17 Test: SchedulerTest.StatsCountBatchesAndRequests
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.StatsCountBatchesAndRequests" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.StatsCountBatchesAndRequests" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.StatsCountBatchesAndRequests
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.StatsCountBatchesAndRequests
+[       OK ] SchedulerTest.StatsCountBatchesAndRequests (0 ms)
+[----------] 1 test from SchedulerTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.17 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.StatsCountBatchesAndRequests" end time: Aug 14 21:30 EDT
+"SchedulerTest.StatsCountBatchesAndRequests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+14/17 Testing: SchedulerTest.QueueWaitLatencyIsRecorded
+14/17 Test: SchedulerTest.QueueWaitLatencyIsRecorded
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.QueueWaitLatencyIsRecorded" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.QueueWaitLatencyIsRecorded" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.QueueWaitLatencyIsRecorded
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.QueueWaitLatencyIsRecorded
+[       OK ] SchedulerTest.QueueWaitLatencyIsRecorded (0 ms)
+[----------] 1 test from SchedulerTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.18 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.QueueWaitLatencyIsRecorded" end time: Aug 14 21:30 EDT
+"SchedulerTest.QueueWaitLatencyIsRecorded" time elapsed: 00:00:00
+----------------------------------------------------------
+
+15/17 Testing: SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest
+15/17 Test: SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest
+[       OK ] SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest (0 ms)
+[----------] 1 test from SchedulerTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.18 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest" end time: Aug 14 21:30 EDT
+"SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+16/17 Testing: SchedulerTest.IdleSchedulerDoesNotSpin
+16/17 Test: SchedulerTest.IdleSchedulerDoesNotSpin
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.IdleSchedulerDoesNotSpin" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.IdleSchedulerDoesNotSpin" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.IdleSchedulerDoesNotSpin
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.IdleSchedulerDoesNotSpin
+[       OK ] SchedulerTest.IdleSchedulerDoesNotSpin (204 ms)
+[----------] 1 test from SchedulerTest (204 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (205 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.38 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.IdleSchedulerDoesNotSpin" end time: Aug 14 21:30 EDT
+"SchedulerTest.IdleSchedulerDoesNotSpin" time elapsed: 00:00:00
+----------------------------------------------------------
+
+17/17 Testing: SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates
+17/17 Test: SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates
+Command: "/Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests/cuda_db_tests" "--gtest_filter=SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates" "--gtest_also_run_disabled_tests"
+Directory: /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/cpp/tests
+"SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates" start time: Aug 14 21:30 EDT
+Output:
+----------------------------------------------------------
+Running main() from /Users/jeremycortez/Desktop/cpp_projects/cuda_db/build-tsan/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SchedulerTest
+[ RUN      ] SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates
+[       OK ] SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates (3 ms)
+[----------] 1 test from SchedulerTest (3 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (3 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.18 sec
+----------------------------------------------------------
+Test Passed.
+"SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates" end time: Aug 14 21:30 EDT
+"SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Aug 14 21:30 EDT

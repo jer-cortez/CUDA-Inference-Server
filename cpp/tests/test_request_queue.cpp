@@ -52,6 +52,52 @@ TEST(RequestQueueTest, TimesOutAndReturnsPartialBatch) {
     EXPECT_GE(elapsed, 20ms);
 }
 
+// The batching window is timed from the first request's arrival, not from
+// the call to wait_and_drain(). A request that lands late must still get the
+// full window to find batch-mates -- under a single timed wait starting at
+// call entry it would get whatever was left over, or nothing at all.
+TEST(RequestQueueTest, BatchWindowStartsAtFirstArrival) {
+    RequestQueue queue;
+
+    std::thread producer([&queue] {
+        std::this_thread::sleep_for(30ms);
+        queue.push(make_request(1));
+    });
+
+    const auto start = std::chrono::steady_clock::now();
+    std::vector<InferenceRequest> batch = queue.wait_and_drain(8, 20ms);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    producer.join();
+
+    ASSERT_EQ(batch.size(), 1u);
+    EXPECT_EQ(batch[0].request_id, 1u);
+    // 30ms idle + a 20ms window that opens only once the push lands.
+    EXPECT_GE(elapsed, 50ms);
+}
+
+// A zero timeout disables the batching window entirely: the request is served
+// as soon as it arrives. The idle wait before it must still block, though --
+// see IdleSchedulerDoesNotSpin in test_scheduler.cpp for that half.
+TEST(RequestQueueTest, ZeroTimeoutReturnsFirstArrivalImmediately) {
+    RequestQueue queue;
+
+    std::thread producer([&queue] {
+        std::this_thread::sleep_for(20ms);
+        queue.push(make_request(1));
+    });
+
+    const auto start = std::chrono::steady_clock::now();
+    std::vector<InferenceRequest> batch = queue.wait_and_drain(8, 0ms);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    producer.join();
+
+    ASSERT_EQ(batch.size(), 1u);
+    EXPECT_GE(elapsed, 20ms);
+    EXPECT_LT(elapsed, 200ms);
+}
+
 // wait_and_drain() on an empty queue should block until another thread
 // pushes, rather than returning immediately or busy-looping.
 TEST(RequestQueueTest, WaitsWhenEmptyThenReceivesPush) {

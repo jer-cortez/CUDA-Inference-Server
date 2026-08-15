@@ -6,6 +6,16 @@
 
 namespace cuda_db {
 
+namespace {
+
+std::uint64_t elapsed_us_since(std::chrono::steady_clock::time_point start) {
+    const auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    return delta > 0 ? static_cast<std::uint64_t>(delta) : 0;
+}
+
+}  // namespace
+
 /**
  * @brief Constructs a Scheduler bound to a given engine and configuration.
  * @details Only stores `engine` and `config`; does not start the worker
@@ -85,6 +95,9 @@ SchedulerStats Scheduler::stats() const {
     snapshot.total_batches = total_batches_.load(std::memory_order_relaxed);
     snapshot.total_requests = total_requests_.load(std::memory_order_relaxed);
     snapshot.max_batch_size_seen = max_batch_size_seen_.load(std::memory_order_relaxed);
+    snapshot.total_queue_wait_us = total_queue_wait_us_.load(std::memory_order_relaxed);
+    snapshot.max_queue_wait_us = max_queue_wait_us_.load(std::memory_order_relaxed);
+    snapshot.total_exec_us = total_exec_us_.load(std::memory_order_relaxed);
     return snapshot;
 }
 
@@ -140,6 +153,25 @@ void Scheduler::run_loop() {
                                                             std::memory_order_relaxed)) {
         }
 
+        // Queue wait is measured here, at the point the batch is finalized:
+        // this is the last moment a request is still waiting for batch-mates
+        // rather than being worked on. Requests rejected above for a bad size
+        // are excluded, matching total_requests_.
+        const auto dequeued_at = std::chrono::steady_clock::now();
+        for (const InferenceRequest& req : batch) {
+            const auto waited = std::chrono::duration_cast<std::chrono::microseconds>(
+                dequeued_at - req.arrival_time).count();
+            const std::uint64_t waited_us =
+                waited > 0 ? static_cast<std::uint64_t>(waited) : 0;
+
+            total_queue_wait_us_.fetch_add(waited_us, std::memory_order_relaxed);
+            std::uint64_t previous_max_wait = max_queue_wait_us_.load(std::memory_order_relaxed);
+            while (waited_us > previous_max_wait &&
+                   !max_queue_wait_us_.compare_exchange_weak(previous_max_wait, waited_us,
+                                                              std::memory_order_relaxed)) {
+            }
+        }
+
         std::vector<float> batched_input;
         batched_input.reserve(batch.size() * config_.input_elems);
         for (const InferenceRequest& req : batch) {
@@ -147,9 +179,16 @@ void Scheduler::run_loop() {
                                   req.input_data.end());
         }
 
+        // Timed on both the success and failure paths, so a batch that total_batches_
+        // has already counted always contributes to total_exec_us_ -- otherwise a
+        // failing engine would quietly drag avg_exec_ms toward zero.
+        const auto exec_started = std::chrono::steady_clock::now();
+        bool exec_recorded = false;
         try {
             std::vector<float> batched_output = engine_->run_inference(
                 batched_input, batch.size(), config_.input_elems, config_.output_elems);
+            total_exec_us_.fetch_add(elapsed_us_since(exec_started), std::memory_order_relaxed);
+            exec_recorded = true;
 
             if (batched_output.size() != batch.size() * config_.output_elems) {
                 throw InferenceError("engine returned an unexpected output size");
@@ -164,6 +203,9 @@ void Scheduler::run_loop() {
                 batch[i].result_promise.set_value(std::move(result));
             }
         } catch (...) {
+            if (!exec_recorded) {
+                total_exec_us_.fetch_add(elapsed_us_since(exec_started), std::memory_order_relaxed);
+            }
             std::exception_ptr eptr = std::current_exception();
             for (InferenceRequest& req : batch) {
                 req.result_promise.set_exception(eptr);

@@ -1,0 +1,1 @@
+/usr/bin/c++ -fsanitize=thread -g -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/cuda_db_tests.dir/test_request_queue.cpp.o CMakeFiles/cuda_db_tests.dir/test_scheduler.cpp.o -o cuda_db_tests  ../libcuda_db_core.a ../../lib/libgtest_main.a ../../lib/libgtest.a

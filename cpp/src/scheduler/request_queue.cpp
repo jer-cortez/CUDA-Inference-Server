@@ -29,10 +29,26 @@ void RequestQueue::push(InferenceRequest&& request) {
  * condition is the dynamic-batching trigger. Also returns early if
  * shutdown() has been called.
  *
+ * The wait is split into two phases, which matters for both correctness and
+ * CPU cost:
+ *
+ * Phase 1 waits, untimed, for the queue to become non-empty. An idle server
+ * therefore parks on the condition variable instead of burning a core -- a
+ * single timed wait would spin here whenever `timeout` is 0ms, since
+ * cv_.wait_for(lock, 0ms, pred) returns immediately on a false predicate.
+ *
+ * Phase 2 then opens the batching window. Because it starts only once the
+ * first request has arrived, `timeout` measures how long that request waits
+ * for company, not how long this call has been running. Under a single timed
+ * wait a request arriving late in the window would get an arbitrarily
+ * truncated -- possibly zero -- share of it.
+ *
  * @param max_batch_size Maximum number of requests to drain in one call, and
  * the queue-size threshold that triggers an early return.
- * @param timeout Maximum time to wait for `max_batch_size` requests to
- * accumulate before returning whatever is available.
+ * @param timeout How long, measured from the first request's arrival, to wait
+ * for `max_batch_size` requests to accumulate before returning whatever is
+ * available. A timeout of 0ms disables phase 2 entirely, so each request is
+ * served as soon as it arrives.
  * @return std::vector<InferenceRequest> The drained batch. May contain fewer
  * than `max_batch_size` items (timeout case) or be empty (woken by
  * shutdown() with nothing queued).
@@ -42,9 +58,24 @@ void RequestQueue::push(InferenceRequest&& request) {
  */
 std::vector<InferenceRequest> RequestQueue::wait_and_drain(std::size_t max_batch_size, std::chrono::milliseconds timeout) {
     std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait_for(lock, timeout, [this, max_batch_size] {
-        return queue_.size() >= max_batch_size || stop_requested_;
+
+    // Phase 1: park until there is something to batch, or we are shutting down.
+    cv_.wait(lock, [this] {
+        return !queue_.empty() || stop_requested_;
     });
+
+    // Woken by shutdown() with nothing queued: nothing to do. Returning here
+    // is what lets the worker loop distinguish "idle" from "drained and done".
+    if (queue_.empty()) {
+        return {};
+    }
+
+    // Phase 2: the batching window, timed from the first arrival above.
+    if (timeout > std::chrono::milliseconds::zero()) {
+        cv_.wait_for(lock, timeout, [this, max_batch_size] {
+            return queue_.size() >= max_batch_size || stop_requested_;
+        });
+    }
 
     std::vector<InferenceRequest> batch;
     const std::size_t drain_count = std::min(max_batch_size, queue_.size());

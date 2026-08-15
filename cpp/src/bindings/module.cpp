@@ -97,6 +97,11 @@ public:
         out["total_requests"] = snapshot.total_requests;
         out["max_batch_size_seen"] = snapshot.max_batch_size_seen;
         out["queue_depth"] = static_cast<std::uint64_t>(scheduler_.queue_.size());
+        // Milliseconds, matching PredictionResponse.latency_ms, so the
+        // client-observed and server-side numbers are directly comparable.
+        out["avg_queue_wait_ms"] = snapshot.avg_queue_wait_ms();
+        out["max_queue_wait_ms"] = snapshot.max_queue_wait_ms();
+        out["avg_exec_ms"] = snapshot.avg_exec_ms();
         return out;
     }
 

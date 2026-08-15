@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcuda_db_core.a CMakeFiles/cuda_db_core.dir/src/scheduler/request_queue.cpp.o CMakeFiles/cuda_db_core.dir/src/scheduler/scheduler.cpp.o CMakeFiles/cuda_db_core.dir/src/engine/execution_engine.cpp.o
+/usr/bin/ranlib libcuda_db_core.a

@@ -4,7 +4,13 @@
 #include <chrono>
 #include <memory>
 #include <stdexcept>
+#include <thread>
 #include <vector>
+
+#ifndef _WIN32
+#include <sys/resource.h>
+#include <sys/time.h>
+#endif
 
 #include <gtest/gtest.h>
 
@@ -172,6 +178,96 @@ TEST(SchedulerTest, StatsCountBatchesAndRequests) {
     EXPECT_GE(after.max_batch_size_seen, 1u);
     EXPECT_LE(after.max_batch_size_seen, 8u);
 }
+
+// arrival_time is stamped by the caller when the request enters the system,
+// so the queue-wait counter must reflect time spent waiting for batch-mates,
+// not just time spent inside run_loop(). Backdating the stamp gives an exact
+// lower bound to assert against without depending on scheduler timing.
+TEST(SchedulerTest, QueueWaitLatencyIsRecorded) {
+    auto engine = std::make_shared<StubExecutionEngine>();
+    SchedulerConfig config;
+    config.max_batch_size = 1;
+    config.max_wait = 0ms;
+    config.input_elems = 1;
+    config.output_elems = 1;
+
+    Scheduler scheduler(engine, config);
+    scheduler.start();
+
+    InferenceRequest req = make_request(1, 5.0f);
+    req.arrival_time = std::chrono::steady_clock::now() - 50ms;
+
+    scheduler.submit(std::move(req)).get();
+    scheduler.stop();
+
+    SchedulerStats after = scheduler.stats();
+    EXPECT_GE(after.max_queue_wait_us, 50'000u);
+    EXPECT_GE(after.total_queue_wait_us, 50'000u);
+    EXPECT_GE(after.avg_queue_wait_ms(), 50.0);
+}
+
+// Counters must read zero -- not divide by zero or report garbage -- before
+// any request has been served, since /healthz is polled on a cold server.
+TEST(SchedulerTest, LatencyStatsAreZeroBeforeFirstRequest) {
+    auto engine = std::make_shared<StubExecutionEngine>();
+    Scheduler scheduler(engine, SchedulerConfig{});
+
+    SchedulerStats stats = scheduler.stats();
+    EXPECT_EQ(stats.total_queue_wait_us, 0u);
+    EXPECT_DOUBLE_EQ(stats.avg_queue_wait_ms(), 0.0);
+    EXPECT_DOUBLE_EQ(stats.max_queue_wait_ms(), 0.0);
+    EXPECT_DOUBLE_EQ(stats.avg_exec_ms(), 0.0);
+}
+
+#ifndef _WIN32
+// An idle scheduler must park on the condition variable, not spin. This is a
+// real regression guard: with a single timed wait, max_wait == 0ms made
+// cv_.wait_for() return immediately on every iteration and run_loop() burned
+// a whole core doing nothing. Measured in consumed CPU time rather than wall
+// time, because that is the actual symptom.
+TEST(SchedulerTest, IdleSchedulerDoesNotSpin) {
+    auto engine = std::make_shared<StubExecutionEngine>();
+    SchedulerConfig config;
+    config.max_batch_size = 8;
+    config.max_wait = 0ms;  // the configuration that used to spin
+    config.input_elems = 1;
+    config.output_elems = 1;
+
+    Scheduler scheduler(engine, config);
+    scheduler.start();
+
+    const auto cpu_used = [] {
+        rusage usage{};
+        getrusage(RUSAGE_SELF, &usage);
+        const auto to_us = [](const timeval& tv) {
+            return static_cast<std::uint64_t>(tv.tv_sec) * 1'000'000u +
+                   static_cast<std::uint64_t>(tv.tv_usec);
+        };
+        return to_us(usage.ru_utime) + to_us(usage.ru_stime);
+    };
+
+    const std::uint64_t before = cpu_used();
+    std::this_thread::sleep_for(200ms);
+    const std::uint64_t consumed = cpu_used() - before;
+
+    // A spinning worker consumes ~200ms of CPU over this window; a parked one
+    // consumes essentially none. The 50ms bound leaves room for whatever else
+    // the test binary is doing without being anywhere near the spin case.
+    EXPECT_LT(consumed, 50'000u);
+
+    SchedulerStats idle = scheduler.stats();
+    EXPECT_EQ(idle.total_batches, 0u);
+    EXPECT_EQ(idle.total_requests, 0u);
+
+    // Still responsive after idling -- a parked worker that never wakes would
+    // pass the CPU check above while being completely broken.
+    InferenceResult result = scheduler.submit(make_request(1, 7.0f)).get();
+    EXPECT_EQ(result.request_id, 1u);
+    EXPECT_FLOAT_EQ(result.logits[0], 7.0f);
+
+    scheduler.stop();
+}
+#endif  // _WIN32
 
 // A request whose input length disagrees with config_.input_elems must be
 // failed and dropped rather than concatenated -- otherwise it would shift

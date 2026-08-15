@@ -1,0 +1,18 @@
+RequestQueueTest.DrainsAsSoonAsBatchSizeReached 1 0.168542
+RequestQueueTest.TimesOutAndReturnsPartialBatch 1 0.196128
+RequestQueueTest.BatchWindowStartsAtFirstArrival 1 0.22382
+RequestQueueTest.ZeroTimeoutReturnsFirstArrivalImmediately 1 0.192504
+RequestQueueTest.WaitsWhenEmptyThenReceivesPush 1 0.181867
+RequestQueueTest.ShutdownUnblocksWaiter 1 0.18149
+RequestQueueTest.SizeReflectsQueuedItemsWithoutDraining 1 0.167157
+RequestQueueTest.ConcurrentPushesAreAllDelivered 1 0.170506
+SchedulerTest.ResolvesEachFutureWithMatchingRequestId 1 0.167192
+SchedulerTest.BatchesWithinTimeoutEvenBelowMaxBatchSize 1 0.194253
+SchedulerTest.EngineExceptionPropagatesToAllFuturesInBatch 1 0.168114
+SchedulerTest.PendingRequestsCompleteAcrossStop 1 0.172059
+SchedulerTest.StatsCountBatchesAndRequests 1 0.170273
+SchedulerTest.QueueWaitLatencyIsRecorded 1 0.178272
+SchedulerTest.LatencyStatsAreZeroBeforeFirstRequest 1 0.18441
+SchedulerTest.IdleSchedulerDoesNotSpin 1 0.379916
+SchedulerTest.MisSizedRequestFailsWithoutCorruptingBatchMates 1 0.175523
+---
