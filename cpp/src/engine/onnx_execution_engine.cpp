@@ -15,9 +15,12 @@ struct OnnxExecutionEngine::Impl {
     Ort::SessionOptions session_options;
     Ort::Session session{nullptr};
     Ort::MemoryInfo memory_info{nullptr};
-    Ort::AllocatedStringPtr input_name_owned;
-    Ort::AllocatedStringPtr output_name_owned;
 
+    // No AllocatedStringPtr members here: that type is a unique_ptr with a
+    // stateful deleter (it carries the OrtAllocator*), so it has no default
+    // constructor and cannot be a default-initialized member. The model's
+    // input/output names are copied into std::string in the constructor
+    // instead, and the allocated originals are released right after.
     Impl() : env{ORT_LOGGING_LEVEL_WARNING, "cuda_db"} {}
 };
 
@@ -61,7 +64,10 @@ OnnxExecutionEngine::OnnxExecutionEngine(Options options)
     }
 
     translate_ort_errors("failed to initialize ONNX Runtime session", [&] {
-        OrtCUDAProviderOptions cuda_options;
+        // Value-initialized: this is a C struct, and default-initialization
+        // would leave arena/cudnn/stream fields holding garbage that gets
+        // handed straight to the provider.
+        OrtCUDAProviderOptions cuda_options{};
         cuda_options.device_id = options_.device_id;
         impl_->session_options.AppendExecutionProvider_CUDA(cuda_options);
         impl_->session_options.SetGraphOptimizationLevel(
@@ -89,10 +95,12 @@ OnnxExecutionEngine::OnnxExecutionEngine(Options options)
 
     translate_ort_errors("failed to query model input/output names", [&] {
         Ort::AllocatorWithDefaultOptions allocator;
-        impl_->input_name_owned = impl_->session.GetInputNameAllocated(0, allocator);
-        impl_->output_name_owned = impl_->session.GetOutputNameAllocated(0, allocator);
-        input_name_ = impl_->input_name_owned.get();
-        output_name_ = impl_->output_name_owned.get();
+        // Locals, not members: the std::string assignments below copy the
+        // characters, so the ORT-allocated buffers can be freed on scope exit.
+        const Ort::AllocatedStringPtr input = impl_->session.GetInputNameAllocated(0, allocator);
+        const Ort::AllocatedStringPtr output = impl_->session.GetOutputNameAllocated(0, allocator);
+        input_name_ = input.get();
+        output_name_ = output.get();
         return 0;
     });
 }
