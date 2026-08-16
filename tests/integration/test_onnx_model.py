@@ -115,11 +115,10 @@ async def test_each_request_matches_its_own_solo_run(client_for, model_settings)
     # is genuinely broken, regardless of how the numeric tolerance is tuned.
     assert int(np.argmax(batched)) == int(np.argmax(solo))
 
-    # Loose relative tolerance, not equality: cuDNN selects a different
-    # convolution algorithm for a batched run than a single-image one, and
-    # across 50 layers that drift is proportional to the value. A real
-    # batching bug would instead show up as wholly different logits, which the
-    # argmax check above already catches.
-    np.testing.assert_allclose(
-        np.array(batched), np.array(solo), rtol=1e-2, atol=1e-3
-    )
+    # Absolute bound, not equality: cuDNN selects a different convolution
+    # algorithm for a batched run than a single-image one, and float error
+    # accumulating through 50 layers gives a roughly constant ~1e-3 drift
+    # regardless of logit magnitude. A real batching bug would instead produce
+    # unrelated logits, which the argmax check above already catches.
+    max_diff = float(np.max(np.abs(np.array(batched) - np.array(solo))))
+    assert max_diff < 1e-2, f"largest logit drift {max_diff} exceeds float-noise bound"

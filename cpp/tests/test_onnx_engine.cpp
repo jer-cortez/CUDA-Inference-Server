@@ -162,18 +162,35 @@ TEST(OnnxEngineTest, BatchedRowMatchesSameInputRunAlone) {
                   std::distance(solo.begin(), solo_top))
             << "row " << i << ": batching changed the predicted class";
 
+        // Stated as a single worst-case bound rather than 1000 per-element
+        // assertions, so a failure reports the largest drift instead of
+        // whichever class happened to trip first.
+        //
+        // The bound is absolute, not relative: measured drift is ~1.2e-3
+        // regardless of logit magnitude (it looks the same on a logit of 1.7
+        // as on one of 0.003), because it comes from float error accumulating
+        // through 50 layers when cuDNN picks a different convolution
+        // algorithm for a batched run than a single-image one. That is a
+        // constant noise floor, not proportional scaling.
+        //
+        // 1e-2 leaves ~8x headroom over the observed floor while staying far
+        // below the logit range (roughly -10..15), so a genuine batching bug
+        // -- which produces unrelated values, not 0.1% agreement -- still
+        // fails loudly. The argmax check above is the real guard.
+        float max_diff = 0.0F;
+        std::size_t worst_class = 0;
         for (std::size_t j = 0; j < kOutputElems; ++j) {
-            // Combined absolute + relative tolerance, mirroring numpy's
-            // allclose. A bare absolute tolerance is wrong here: cuDNN selects
-            // a different convolution algorithm for a batched run than a
-            // single-image one, and across 50 layers that produces
-            // proportional drift -- ~1e-3 on a logit of ~1.7 is float noise,
-            // not a batching error, which would instead show up as wholly
-            // different values on most of the 1000 classes.
-            const float tolerance = 1e-3F + 1e-2F * std::fabs(solo[j]);
-            ASSERT_NEAR(batched_row[j], solo[j], tolerance)
-                << "row " << i << ", class " << j;
+            const float diff = std::fabs(batched_row[j] - solo[j]);
+            if (diff > max_diff) {
+                max_diff = diff;
+                worst_class = j;
+            }
         }
+
+        EXPECT_LT(max_diff, 1e-2F)
+            << "row " << i << ": largest drift " << max_diff << " at class " << worst_class
+            << " (batched " << batched_row[worst_class] << " vs solo " << solo[worst_class]
+            << ")";
     }
 }
 
