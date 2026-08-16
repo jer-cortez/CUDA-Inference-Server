@@ -12,6 +12,14 @@
 namespace cuda_db {
 
 /**
+ * @brief Builds the engine with default ImageNet normalization constants.
+ * @details Delegates to the Options constructor. Defined out of line because
+ * the enclosing class is complete here, which is what lets `Options{}` pick
+ * up its default member initializers.
+ */
+CudaExecutionEngine::CudaExecutionEngine() : CudaExecutionEngine(Options{}) {}
+
+/**
  * @brief Builds the engine and uploads the normalization constants.
  * @details Validates mean/stddev host-side while the values are still
  * readable -- a zero stddev would otherwise divide to inf silently on device,

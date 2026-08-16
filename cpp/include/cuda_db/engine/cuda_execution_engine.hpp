@@ -38,7 +38,13 @@ public:
         std::size_t stream_count = 2;
     };
 
-    explicit CudaExecutionEngine(Options options = {});
+    // Two overloads rather than a defaulted `Options options = {}` parameter:
+    // GCC rejects that, because a nested aggregate's default member
+    // initializers are not usable in a default argument at that point in the
+    // enclosing class definition. The no-arg form delegates, out of line, to
+    // the other one.
+    CudaExecutionEngine();
+    explicit CudaExecutionEngine(Options options);
 
     std::vector<float> run_inference(const std::vector<float>& batched_input,
                                       std::size_t batch_size, std::size_t input_elems,
