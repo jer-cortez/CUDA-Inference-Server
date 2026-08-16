@@ -20,4 +20,12 @@ function(cuda_db_enable_cuda target)
     # Needed on any translation unit that includes a CUDA Runtime header
     # (e.g. memory/device_buffer.hpp) without going through nvcc.
     target_include_directories(${target} PUBLIC ${CUDAToolkit_INCLUDE_DIRS})
+    # A target's CUDA_ARCHITECTURES property is initialized from
+    # CMAKE_CUDA_ARCHITECTURES at the moment the target is *created*. Targets
+    # declared before this module was included therefore capture an empty
+    # value and fail at generate time ("CUDA_ARCHITECTURES is empty for
+    # target ..."), so set it explicitly here rather than relying on when the
+    # add_library/add_executable call happened to run.
+    set_target_properties(${target} PROPERTIES
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
 endfunction()

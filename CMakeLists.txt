@@ -20,4 +20,13 @@ if(CUDA_DB_BUILD_TESTS)
     enable_testing()
 endif()
 
+# Included here, before any target exists, so CMAKE_CUDA_ARCHITECTURES is set
+# by the time add_library/add_executable calls in cpp/ initialize their
+# per-target CUDA_ARCHITECTURES property from it. cpp/CMakeLists.txt includes
+# this module too, so that directory still configures standalone; the include
+# is idempotent.
+if(CUDA_DB_ENABLE_CUDA)
+    include(CudaTargets)
+endif()
+
 add_subdirectory(cpp)

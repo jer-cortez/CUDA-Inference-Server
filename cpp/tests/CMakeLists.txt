@@ -19,6 +19,10 @@ if(CUDA_DB_ENABLE_CUDA)
         test_memory_pool.cpp
         test_kernels.cu
     )
+    # test_kernels.cu is device code, so this target needs its own
+    # CUDA_ARCHITECTURES -- that property is not inherited through linking
+    # against cuda_db_core.
+    cuda_db_enable_cuda(cuda_db_tests)
 endif()
 
 target_link_libraries(cuda_db_tests PRIVATE
