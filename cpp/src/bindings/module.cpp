@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <future>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -16,6 +17,10 @@
 
 #include "cuda_db/engine/execution_engine.hpp"
 #include "cuda_db/scheduler/scheduler.hpp"
+
+#ifdef CUDA_DB_ENABLE_ONNX
+#include "cuda_db/engine/onnx_execution_engine.hpp"
+#endif
 
 namespace py = pybind11;
 
@@ -29,20 +34,21 @@ struct RuntimeConfig {
     std::int64_t max_wait_ms = 5;
     std::size_t input_elems = 3 * 224 * 224;
     std::size_t output_elems = 1000;
+    // Empty means "use the stub engine", which is what keeps the server
+    // runnable on a machine with no GPU or no exported model.
+    std::string model_path;
 };
 
 // What Python actually holds: an engine, the scheduler driving it, and the
 // request-id counter. Kept here rather than in cuda_db_core because it exists
 // purely to give the binding layer something to own.
-//
-// In a later milestone the constructor also takes a model path and builds an
-// ONNX Runtime engine instead of the stub.
 class InferenceRuntime {
 public:
     explicit InferenceRuntime(const RuntimeConfig& config)
-        : engine_{std::make_shared<cuda_db::StubExecutionEngine>()},
+        : engine_{make_engine(config)},
           scheduler_{engine_, to_scheduler_config(config)},
-          input_elems_{config.input_elems} {
+          input_elems_{config.input_elems},
+          engine_name_{config.model_path.empty() ? "stub" : "onnx"} {
         scheduler_.start();
     }
 
@@ -93,6 +99,10 @@ public:
     py::dict stats() const {
         const cuda_db::SchedulerStats snapshot = scheduler_.stats();
         py::dict out;
+        // Surfaced so /healthz can answer "is the real model serving?". A stub
+        // silently standing in for ONNX returns plausibly-shaped output, so
+        // there is otherwise no way to tell from the response alone.
+        out["engine"] = engine_name_;
         out["total_batches"] = snapshot.total_batches;
         out["total_requests"] = snapshot.total_requests;
         out["max_batch_size_seen"] = snapshot.max_batch_size_seen;
@@ -106,6 +116,25 @@ public:
     }
 
 private:
+    // Chooses the backend from the config. An empty model_path selects the
+    // stub; a non-empty one requires an ONNX-enabled build, and says so
+    // explicitly rather than silently serving echoed inputs -- a server that
+    // looks healthy while returning fake predictions is the worse failure.
+    static std::shared_ptr<cuda_db::IExecutionEngine> make_engine(const RuntimeConfig& config) {
+        if (config.model_path.empty()) {
+            return std::make_shared<cuda_db::StubExecutionEngine>();
+        }
+#ifdef CUDA_DB_ENABLE_ONNX
+        cuda_db::OnnxExecutionEngine::Options options;
+        options.model_path = config.model_path;
+        return std::make_shared<cuda_db::OnnxExecutionEngine>(std::move(options));
+#else
+        throw std::runtime_error(
+            "model_path was set but this build has no ONNX Runtime support; "
+            "reconfigure with -DCUDA_DB_ENABLE_ONNX=ON");
+#endif
+    }
+
     static cuda_db::SchedulerConfig to_scheduler_config(const RuntimeConfig& config) {
         cuda_db::SchedulerConfig out;
         out.max_batch_size = config.max_batch_size;
@@ -115,9 +144,12 @@ private:
         return out;
     }
 
-    std::shared_ptr<cuda_db::StubExecutionEngine> engine_;
+    // Held as the interface, not a concrete type, so the backend is a
+    // construction-time choice.
+    std::shared_ptr<cuda_db::IExecutionEngine> engine_;
     cuda_db::Scheduler scheduler_;
     std::size_t input_elems_;
+    std::string engine_name_;
     std::atomic<std::uint64_t> next_request_id_{0};
 };
 
@@ -132,20 +164,24 @@ PYBIND11_MODULE(cuda_db_native, m) {
 
     py::class_<RuntimeConfig>(m, "RuntimeConfig")
         .def(py::init([](std::size_t max_batch_size, std::int64_t max_wait_ms,
-                         std::size_t input_elems, std::size_t output_elems) {
+                         std::size_t input_elems, std::size_t output_elems,
+                         std::string model_path) {
                  RuntimeConfig config;
                  config.max_batch_size = max_batch_size;
                  config.max_wait_ms = max_wait_ms;
                  config.input_elems = input_elems;
                  config.output_elems = output_elems;
+                 config.model_path = std::move(model_path);
                  return config;
              }),
              py::arg("max_batch_size") = 8, py::arg("max_wait_ms") = 5,
-             py::arg("input_elems") = 3 * 224 * 224, py::arg("output_elems") = 1000)
+             py::arg("input_elems") = 3 * 224 * 224, py::arg("output_elems") = 1000,
+             py::arg("model_path") = "")
         .def_readwrite("max_batch_size", &RuntimeConfig::max_batch_size)
         .def_readwrite("max_wait_ms", &RuntimeConfig::max_wait_ms)
         .def_readwrite("input_elems", &RuntimeConfig::input_elems)
-        .def_readwrite("output_elems", &RuntimeConfig::output_elems);
+        .def_readwrite("output_elems", &RuntimeConfig::output_elems)
+        .def_readwrite("model_path", &RuntimeConfig::model_path);
 
     py::class_<InferenceRuntime>(m, "InferenceRuntime")
         .def(py::init<const RuntimeConfig&>(), py::arg("config"))

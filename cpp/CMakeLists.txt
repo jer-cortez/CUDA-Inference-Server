@@ -38,6 +38,21 @@ if(CUDA_DB_ENABLE_CUDA)
     cuda_db_enable_cuda(cuda_db_core)
 endif()
 
+# The ONNX Runtime engine is a plain .cpp -- ORT is consumed as a prebuilt
+# shared library, so nothing here goes through nvcc. Independent of
+# CUDA_DB_ENABLE_CUDA: ORT's CUDA execution provider lives inside libonnxruntime
+# and is selected at session-creation time, so this target does not need our
+# own CUDA plumbing to run on the GPU.
+if(CUDA_DB_ENABLE_ONNX)
+    find_package(ONNXRuntime REQUIRED)
+
+    target_sources(cuda_db_core PRIVATE
+        src/engine/onnx_execution_engine.cpp
+    )
+    target_link_libraries(cuda_db_core PUBLIC onnxruntime::onnxruntime)
+    target_compile_definitions(cuda_db_core PUBLIC CUDA_DB_ENABLE_ONNX=1)
+endif()
+
 if(CUDA_DB_BUILD_TESTS)
     add_subdirectory(tests)
 endif()

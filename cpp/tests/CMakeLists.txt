@@ -25,6 +25,13 @@ if(CUDA_DB_ENABLE_CUDA)
     cuda_db_enable_cuda(cuda_db_tests)
 endif()
 
+# Separate from the CUDA guard: ORT is consumed as a prebuilt library, so these
+# tests build wherever CUDA_DB_ENABLE_ONNX is on. They skip themselves at run
+# time when no exported model is present.
+if(CUDA_DB_ENABLE_ONNX)
+    target_sources(cuda_db_tests PRIVATE test_onnx_engine.cpp)
+endif()
+
 target_link_libraries(cuda_db_tests PRIVATE
     cuda_db_core
     GTest::gtest_main

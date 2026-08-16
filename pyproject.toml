@@ -20,6 +20,13 @@ dev = [
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
 ]
+# Only needed to decode encoded images (preprocessing.image_utils). Kept out of
+# the base dependencies because /predict currently takes an already-decoded
+# float array, so the server runs without it; image_utils imports it lazily and
+# its tests skip when it is absent.
+images = [
+    "pillow>=10.0",
+]
 
 [tool.scikit-build]
 wheel.packages = ["python/cuda_db"]

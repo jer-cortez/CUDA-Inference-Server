@@ -26,6 +26,13 @@ def _env_int(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer, got {raw!r}") from exc
 
 
+def _env_str(name: str, default: str) -> str:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    return raw
+
+
 @dataclass(frozen=True)
 class RuntimeSettings:
     max_batch_size: int = 8
@@ -36,6 +43,10 @@ class RuntimeSettings:
     # funnels into one scheduler queue and one GPU, so more threads past this
     # buy queueing delay rather than throughput.
     executor_workers: int = 8
+    # Path to the exported ONNX model. Empty selects the stub engine, which is
+    # what keeps the server runnable (and the integration tests meaningful) on
+    # a machine with no GPU or no exported model.
+    model_path: str = ""
 
     @classmethod
     def from_env(cls) -> "RuntimeSettings":
@@ -45,4 +56,5 @@ class RuntimeSettings:
             input_elems=_env_int("CUDA_DB_INPUT_ELEMS", DEFAULT_INPUT_ELEMS),
             output_elems=_env_int("CUDA_DB_OUTPUT_ELEMS", DEFAULT_OUTPUT_ELEMS),
             executor_workers=_env_int("CUDA_DB_EXECUTOR_WORKERS", 8),
+            model_path=_env_str("CUDA_DB_MODEL_PATH", ""),
         )

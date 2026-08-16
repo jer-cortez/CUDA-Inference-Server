@@ -13,6 +13,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 option(CUDA_DB_BUILD_TESTS "Build C++ unit tests" ON)
 option(CUDA_DB_BUILD_PYTHON "Build the pybind11 extension module" OFF)
 option(CUDA_DB_ENABLE_CUDA "Build CUDA memory/kernel/stream targets" OFF)
+# Off by default for the same reason as CUDA: the macOS dev loop and CPU-only
+# CI have no ONNX Runtime, and the stub engine keeps those useful.
+option(CUDA_DB_ENABLE_ONNX "Build the ONNX Runtime execution engine" OFF)
 
 # enable_testing() must run at the top level, otherwise ctest invoked against
 # the root build directory finds no tests registered by cpp/tests.

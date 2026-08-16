@@ -29,6 +29,7 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
                 max_wait_ms=settings.max_wait_ms,
                 input_elems=settings.input_elems,
                 output_elems=settings.output_elems,
+                model_path=settings.model_path,
             )
         )
         executor = make_executor(settings.executor_workers)
