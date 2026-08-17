@@ -2,9 +2,16 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <utility>
 
+#include <cuda_runtime.h>
 #include <onnxruntime_cxx_api.h>
+
+#include "cuda_db/kernels/normalize.cuh"
+#include "cuda_db/memory/cuda_error.hpp"
+#include "cuda_db/memory/device_buffer.hpp"
+#include "cuda_db/memory/pinned_buffer.hpp"
 
 namespace cuda_db {
 
@@ -16,12 +23,34 @@ struct OnnxExecutionEngine::Impl {
     Ort::Session session{nullptr};
     Ort::MemoryInfo memory_info{nullptr};
 
+    // Device-resident path. cuda_memory_info describes device memory to ORT so
+    // an Ort::Value can be built over a pointer we allocated ourselves.
+    Ort::MemoryInfo cuda_memory_info{nullptr};
+    PinnedBuffer host_input;
+    PinnedBuffer host_output;
+    DeviceBuffer device_input;
+    DeviceBuffer device_output;
+    // Only populated when normalize_on_device is set; a handful of floats,
+    // uploaded once rather than per batch.
+    DeviceBuffer device_mean;
+    DeviceBuffer device_stddev;
+    // Copies run on a dedicated non-blocking stream, synchronized around
+    // Session::Run. ORT schedules on its own stream, so sharing one would mean
+    // handing it user_compute_stream -- more coupling than the copies save.
+    cudaStream_t stream = nullptr;
+
     // No AllocatedStringPtr members here: that type is a unique_ptr with a
     // stateful deleter (it carries the OrtAllocator*), so it has no default
     // constructor and cannot be a default-initialized member. The model's
     // input/output names are copied into std::string in the constructor
     // instead, and the allocated originals are released right after.
     Impl() : env{ORT_LOGGING_LEVEL_WARNING, "cuda_db"} {}
+
+    ~Impl() {
+        if (stream != nullptr) {
+            cudaStreamDestroy(stream);
+        }
+    }
 };
 
 namespace {
@@ -109,6 +138,28 @@ OnnxExecutionEngine::OnnxExecutionEngine(Options options)
         throw InferenceError("OnnxExecutionEngine: batch_buckets must be ascending");
     }
 
+    if (options_.normalize_on_device) {
+        // Only the bound path applies the kernel. Allowing this combination
+        // would mean a silent fallback to the host path also silently skipped
+        // normalization -- producing plausible, wrong predictions.
+        if (!options_.use_io_binding) {
+            throw InferenceError(
+                "OnnxExecutionEngine: normalize_on_device requires use_io_binding");
+        }
+        if (options_.mean.empty() || options_.mean.size() != options_.stddev.size()) {
+            throw InferenceError(
+                "OnnxExecutionEngine: mean and stddev must be non-empty and equal length");
+        }
+        if (std::find(options_.stddev.begin(), options_.stddev.end(), 0.0F) !=
+            options_.stddev.end()) {
+            throw InferenceError("OnnxExecutionEngine: stddev entries must be non-zero");
+        }
+        if (options_.input_elems % options_.mean.size() != 0) {
+            throw InferenceError(
+                "OnnxExecutionEngine: input_elems must divide evenly by the channel count");
+        }
+    }
+
     translate_ort_errors("failed to query model input/output names", [&] {
         Ort::AllocatorWithDefaultOptions allocator;
         // Locals, not members: the std::string assignments below copy the
@@ -120,8 +171,68 @@ OnnxExecutionEngine::OnnxExecutionEngine(Options options)
         return 0;
     });
 
+    if (options_.use_io_binding) {
+        allocate_device_buffers();
+    }
+
     if (options_.warm_buckets) {
         warm_buckets();
+    }
+}
+
+/**
+ * @brief Allocates the fixed device and pinned buffers the bound path reuses.
+ * @details Everything is sized for the largest bucket, so no allocation happens
+ * per request. The padded tail of the pinned input buffer is zeroed once here
+ * rather than per call: padding rows never change, and only the real rows are
+ * overwritten each request.
+ *
+ * On failure the engine falls back to the host path instead of refusing to
+ * start -- a server that runs slightly slower is a better outcome than one that
+ * will not serve.
+ */
+void OnnxExecutionEngine::allocate_device_buffers() {
+    const std::size_t max_batch =
+        options_.batch_buckets.empty() ? 1 : options_.batch_buckets.back();
+    const std::size_t input_floats = max_batch * options_.input_elems;
+    const std::size_t output_floats = max_batch * options_.output_elems;
+
+    try {
+        cuda_check(cudaSetDevice(options_.device_id), "cudaSetDevice");
+        cuda_check(cudaStreamCreateWithFlags(&impl_->stream, cudaStreamNonBlocking),
+                   "cudaStreamCreateWithFlags");
+
+        impl_->host_input = PinnedBuffer{input_floats * sizeof(float)};
+        impl_->host_output = PinnedBuffer{output_floats * sizeof(float)};
+        impl_->device_input = DeviceBuffer{input_floats * sizeof(float)};
+        impl_->device_output = DeviceBuffer{output_floats * sizeof(float)};
+
+        std::memset(impl_->host_input.data(), 0, input_floats * sizeof(float));
+
+        if (options_.normalize_on_device) {
+            const std::size_t bytes = options_.mean.size() * sizeof(float);
+            impl_->device_mean = DeviceBuffer{bytes};
+            impl_->device_stddev = DeviceBuffer{bytes};
+            cuda_check(cudaMemcpy(impl_->device_mean.data(), options_.mean.data(), bytes,
+                                  cudaMemcpyHostToDevice),
+                       "cudaMemcpy (mean)");
+            cuda_check(cudaMemcpy(impl_->device_stddev.data(), options_.stddev.data(), bytes,
+                                  cudaMemcpyHostToDevice),
+                       "cudaMemcpy (stddev)");
+        }
+
+        impl_->cuda_memory_info = Ort::MemoryInfo("Cuda", OrtDeviceAllocator,
+                                                   options_.device_id, OrtMemTypeDefault);
+        io_binding_active_ = true;
+    } catch (const std::exception&) {
+        io_binding_active_ = false;
+        // Falling back is only safe when the bound path was a pure
+        // optimization. With device normalization enabled it also carries
+        // correctness, and the host path would quietly serve un-normalized
+        // input, so fail loudly instead.
+        if (options_.normalize_on_device) {
+            throw;
+        }
     }
 }
 
@@ -137,16 +248,13 @@ OnnxExecutionEngine::OnnxExecutionEngine(Options options)
  * request rather than failing construction for a shape nobody may ever use.
  */
 void OnnxExecutionEngine::warm_buckets() {
-    constexpr std::size_t kInputElems = 3 * 224 * 224;
-    constexpr std::size_t kOutputElems = 1000;
-
     for (const std::size_t bucket : options_.batch_buckets) {
         if (bucket == 0) {
             continue;
         }
         try {
-            const std::vector<float> input(bucket * kInputElems, 0.0F);
-            run_inference(input, bucket, kInputElems, kOutputElems);
+            const std::vector<float> input(bucket * options_.input_elems, 0.0F);
+            run_inference(input, bucket, options_.input_elems, options_.output_elems);
         } catch (const std::exception&) {
             // See above: not fatal.
         }
@@ -207,7 +315,109 @@ std::vector<float> OnnxExecutionEngine::run_inference(const std::vector<float>& 
         return {};
     }
 
+    // Geometry is fixed at construction so buffers can be preallocated;
+    // disagreement here would silently read or write the wrong extents.
+    if (input_elems != options_.input_elems || output_elems != options_.output_elems) {
+        throw InferenceError("run_inference called with input/output_elems that differ "
+                             "from the configured geometry");
+    }
+
     const std::size_t padded_batch = bucket_for(batch_size);
+
+    // Oversize batches (larger than any bucket) exceed the preallocated
+    // buffers, so they take the host path, which allocates to fit. Guarding on
+    // empty() as well: an empty bucket list passes the is_sorted check above,
+    // and back() on it would be undefined.
+    const bool fits_preallocated =
+        !options_.batch_buckets.empty() && padded_batch <= options_.batch_buckets.back();
+    if (io_binding_active_ && fits_preallocated) {
+        return run_bound(batched_input, batch_size, padded_batch);
+    }
+    return run_host(batched_input, batch_size, padded_batch);
+}
+
+/**
+ * @brief Device-resident path: pinned staging, preallocated device I/O.
+ * @details Copies only the real rows into the pinned buffer (the padded tail
+ * was zeroed at construction and never changes), moves the padded extent to a
+ * device buffer that is allocated once, optionally normalizes in place on the
+ * GPU, then binds both device tensors so ORT allocates and copies nothing.
+ *
+ * The stream is synchronized before Run and again after the readback because
+ * ORT schedules on its own stream; sharing one would mean handing ORT a
+ * user_compute_stream, which is more coupling than the remaining overlap is
+ * worth here.
+ */
+std::vector<float> OnnxExecutionEngine::run_bound(const std::vector<float>& batched_input,
+                                                   std::size_t batch_size,
+                                                   std::size_t padded_batch) {
+    const std::size_t input_floats = padded_batch * options_.input_elems;
+    const std::size_t output_floats = padded_batch * options_.output_elems;
+
+    std::memcpy(impl_->host_input.data(), batched_input.data(),
+                batched_input.size() * sizeof(float));
+
+    cuda_check(cudaMemcpyAsync(impl_->device_input.data(), impl_->host_input.data(),
+                               input_floats * sizeof(float), cudaMemcpyHostToDevice,
+                               impl_->stream),
+               "cudaMemcpyAsync (H2D)");
+
+    if (options_.normalize_on_device) {
+        const std::size_t channels = options_.mean.size();
+        launch_normalize(impl_->device_input.as<float>(), static_cast<int>(padded_batch),
+                         static_cast<int>(channels),
+                         static_cast<int>(options_.input_elems / channels),
+                         impl_->device_mean.as<float>(), impl_->device_stddev.as<float>(),
+                         impl_->stream);
+    }
+
+    cuda_check(cudaStreamSynchronize(impl_->stream), "cudaStreamSynchronize (pre-Run)");
+
+    return translate_ort_errors("ONNX Runtime inference failed (bound)", [&] {
+        const std::array<std::int64_t, 4> input_shape{
+            static_cast<std::int64_t>(padded_batch), 3, 224, 224};
+        const std::array<std::int64_t, 2> output_shape{
+            static_cast<std::int64_t>(padded_batch),
+            static_cast<std::int64_t>(options_.output_elems)};
+
+        Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+            impl_->cuda_memory_info, impl_->device_input.as<float>(), input_floats,
+            input_shape.data(), input_shape.size());
+        Ort::Value output_tensor = Ort::Value::CreateTensor<float>(
+            impl_->cuda_memory_info, impl_->device_output.as<float>(), output_floats,
+            output_shape.data(), output_shape.size());
+
+        // Rebuilt per call rather than cached: the bound shape changes with the
+        // bucket, and a stale binding would feed the model the previous extent.
+        Ort::IoBinding binding{impl_->session};
+        binding.BindInput(input_name_.c_str(), input_tensor);
+        binding.BindOutput(output_name_.c_str(), output_tensor);
+
+        impl_->session.Run(Ort::RunOptions{nullptr}, binding);
+
+        cuda_check(cudaMemcpyAsync(impl_->host_output.data(), impl_->device_output.data(),
+                                   output_floats * sizeof(float), cudaMemcpyDeviceToHost,
+                                   impl_->stream),
+                   "cudaMemcpyAsync (D2H)");
+        cuda_check(cudaStreamSynchronize(impl_->stream), "cudaStreamSynchronize (post-Run)");
+
+        // Rows beyond batch_size are padding and belong to no request.
+        const float* data = impl_->host_output.as<float>();
+        return std::vector<float>(data, data + batch_size * options_.output_elems);
+    });
+}
+
+/**
+ * @brief Host path: hand ORT a host pointer and let it allocate and copy.
+ * @details The original implementation, kept as a fallback when IoBinding is
+ * disabled or its buffers could not be allocated. Also the reference the bound
+ * path is tested against -- the two must agree on every output.
+ */
+std::vector<float> OnnxExecutionEngine::run_host(const std::vector<float>& batched_input,
+                                                  std::size_t batch_size,
+                                                  std::size_t padded_batch) {
+    const std::size_t input_elems = options_.input_elems;
+    const std::size_t output_elems = options_.output_elems;
 
     // Only materialized when padding is actually needed, so an exact-bucket
     // batch keeps the zero-copy path.

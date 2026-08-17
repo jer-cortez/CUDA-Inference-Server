@@ -64,14 +64,24 @@ int main(int argc, char** argv) {
     //   "1,2,4,8"  four shapes
     //   "8"        one shape -- every batch padded to 8
     const std::string bucket_spec = argc > 2 ? argv[2] : "1,2,4,8";
+    // Third argument toggles the device-resident path, so its effect can be
+    // measured rather than assumed:
+    //   bench_engine model.onnx "8" bound
+    //   bench_engine model.onnx "8" host
+    const std::string path = argc > 3 ? argv[3] : "bound";
 
     cuda_db::OnnxExecutionEngine::Options options;
     options.model_path = model_path;
     options.batch_buckets = parse_buckets(bucket_spec);
-    std::cout << "buckets: " << bucket_spec << "\n";
+    options.use_io_binding = (path != "host");
+    std::cout << "buckets: " << bucket_spec << "   path: " << path << "\n";
 
     std::cout << "loading " << model_path << " ...\n";
     cuda_db::OnnxExecutionEngine engine{std::move(options)};
+    // Reported rather than inferred from the flag: the bound path falls back
+    // silently if its buffers cannot be allocated, and a benchmark that
+    // mislabels which path it measured is worse than no benchmark.
+    std::cout << "io_binding active: " << (engine.io_binding_active() ? "yes" : "no") << "\n";
 
     std::cout << "\n" << std::left << std::setw(8) << "batch" << std::right
               << std::setw(14) << "batch ms" << std::setw(16) << "per-request ms"

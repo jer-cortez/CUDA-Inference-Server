@@ -67,6 +67,42 @@ public:
         // the first real request at each shape pays the planning cost, which
         // lands in p99 rather than in startup where it belongs.
         bool warm_buckets = true;
+
+        // Tensor geometry, needed at construction rather than per call so the
+        // device and pinned buffers can be allocated once. run_inference()
+        // rejects arguments that disagree with these.
+        std::size_t input_elems = 3 * 224 * 224;
+        std::size_t output_elems = 1000;
+
+        // Bind pre-allocated device buffers via Ort::IoBinding instead of
+        // handing ORT a host pointer and letting it allocate and copy per call.
+        // Staging goes through pinned host memory, which is the only kind a
+        // cudaMemcpy can move without the driver staging it again internally.
+        //
+        // Targets the ~6 ms per batch cycle the end-to-end benchmark attributed
+        // to host-side copying (see docs/benchmarks.md). Set false to fall back
+        // to the plain host path, which is useful for isolating whether a
+        // regression came from this.
+        bool use_io_binding = true;
+
+        // Apply ImageNet normalization on the GPU (kernels/normalize.cuh)
+        // instead of in Python.
+        //
+        // OFF by default, and enabling it is a COUPLED change: preprocessing in
+        // python/cuda_db/preprocessing/image_utils.py must stop normalizing at
+        // the same time, or every input is normalized twice and the model
+        // returns confident nonsense that is still shape-correct. There is no
+        // way for this class to detect that mistake, which is why the default
+        // is the safe one.
+        //
+        // It also will not move the benchmark: the load test sends synthetic
+        // tensors and never calls the Python preprocessing path at all. The
+        // reason to enable it is to take per-request CPU work off the Python
+        // layer when serving real images -- and that layer is the current
+        // throughput ceiling.
+        bool normalize_on_device = false;
+        std::vector<float> mean{0.485F, 0.456F, 0.406F};
+        std::vector<float> stddev{0.229F, 0.224F, 0.225F};
         // ORT falls back to the CPU provider when the CUDA EP cannot load,
         // which yields correct answers at a fraction of the speed -- and a
         // meaningless throughput benchmark. When true, construction fails
@@ -105,8 +141,22 @@ public:
     // without inferring it from timings.
     std::size_t bucket_for(std::size_t batch_size) const;
 
+    // True when the device-resident path is actually in use. Reported so a
+    // benchmark run records which path produced its numbers rather than
+    // assuming the option took effect.
+    bool io_binding_active() const noexcept { return io_binding_active_; }
+
 private:
     void warm_buckets();
+    void allocate_device_buffers();
+
+    // The two paths run_inference() dispatches between. Kept as separate
+    // functions so the fallback stays readable rather than becoming branches
+    // threaded through one body.
+    std::vector<float> run_bound(const std::vector<float>& batched_input,
+                                  std::size_t batch_size, std::size_t padded_batch);
+    std::vector<float> run_host(const std::vector<float>& batched_input,
+                                 std::size_t batch_size, std::size_t padded_batch);
 
     // ORT types are confined to the .cpp so this header stays includable from
     // translation units built without ONNX Runtime on the include path.
@@ -117,6 +167,7 @@ private:
     std::vector<std::string> providers_;
     std::string input_name_;
     std::string output_name_;
+    bool io_binding_active_ = false;
 };
 
 }  // namespace cuda_db

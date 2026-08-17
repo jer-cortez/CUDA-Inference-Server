@@ -290,6 +290,99 @@ TEST(OnnxEngineTest, PaddedBatchMatchesSoloRuns) {
     }
 }
 
+// The bound path is an optimization, so it has to be indistinguishable from
+// the path it replaces. Compared bit-for-bit rather than with a tolerance:
+// both run the identical graph on the identical device with the identical
+// input, so any difference means a real bug (wrong extent bound, stale buffer,
+// padding read back as data) rather than float noise.
+TEST(OnnxEngineTest, BoundPathMatchesHostPathExactly) {
+    SKIP_WITHOUT_MODEL();
+
+    OnnxExecutionEngine::Options bound_opts;
+    bound_opts.model_path = model_path();
+    bound_opts.use_io_binding = true;
+
+    OnnxExecutionEngine::Options host_opts;
+    host_opts.model_path = model_path();
+    host_opts.use_io_binding = false;
+
+    OnnxExecutionEngine bound{std::move(bound_opts)};
+    OnnxExecutionEngine host{std::move(host_opts)};
+
+    if (!bound.io_binding_active()) {
+        GTEST_SKIP() << "IoBinding buffers could not be allocated on this device";
+    }
+
+    // 3 exercises padding, 8 exercises the exact-bucket case.
+    for (std::size_t batch : {std::size_t{1}, std::size_t{3}, std::size_t{8}}) {
+        const std::vector<float> input = make_input(batch, 0.75F);
+
+        const std::vector<float> bound_out =
+            bound.run_inference(input, batch, kInputElems, kOutputElems);
+        const std::vector<float> host_out =
+            host.run_inference(input, batch, kInputElems, kOutputElems);
+
+        ASSERT_EQ(bound_out.size(), batch * kOutputElems) << "batch " << batch;
+        ASSERT_EQ(bound_out.size(), host_out.size()) << "batch " << batch;
+        EXPECT_EQ(bound_out, host_out) << "bound and host paths diverged at batch " << batch;
+    }
+}
+
+// Reusing one device buffer across calls means a stale result could be read
+// back if an extent or synchronization were wrong. Distinct inputs in sequence
+// must produce distinct outputs.
+TEST(OnnxEngineTest, BoundPathDoesNotLeakBetweenCalls) {
+    SKIP_WITHOUT_MODEL();
+
+    const std::unique_ptr<OnnxExecutionEngine> engine = make_engine();
+    if (!engine->io_binding_active()) {
+        GTEST_SKIP() << "IoBinding buffers could not be allocated on this device";
+    }
+
+    const std::vector<float> first = make_input(2, 1.0F);
+    const std::vector<float> second = make_input(2, 2.0F);
+
+    const std::vector<float> a = engine->run_inference(first, 2, kInputElems, kOutputElems);
+    const std::vector<float> b = engine->run_inference(second, 2, kInputElems, kOutputElems);
+    // Re-running the first input must reproduce its own result, not the second's.
+    const std::vector<float> a_again =
+        engine->run_inference(first, 2, kInputElems, kOutputElems);
+
+    EXPECT_NE(a, b) << "different inputs produced identical output";
+    EXPECT_EQ(a, a_again) << "repeating an input did not reproduce its result";
+}
+
+// normalize_on_device only takes effect on the bound path, so allowing the
+// combination would mean a fallback silently served un-normalized input.
+TEST(OnnxEngineTest, RejectsDeviceNormalizationWithoutIoBinding) {
+    OnnxExecutionEngine::Options options;
+    options.model_path = model_path();
+    options.normalize_on_device = true;
+    options.use_io_binding = false;
+
+    EXPECT_THROW(OnnxExecutionEngine{std::move(options)}, InferenceError);
+}
+
+TEST(OnnxEngineTest, RejectsZeroStddevWhenNormalizingOnDevice) {
+    OnnxExecutionEngine::Options options;
+    options.model_path = model_path();
+    options.normalize_on_device = true;
+    options.stddev = {0.229F, 0.0F, 0.225F};
+
+    EXPECT_THROW(OnnxExecutionEngine{std::move(options)}, InferenceError);
+}
+
+// Geometry is fixed at construction so buffers can be preallocated; a caller
+// disagreeing about it would otherwise read or write the wrong extents.
+TEST(OnnxEngineTest, RejectsGeometryThatDiffersFromConstruction) {
+    SKIP_WITHOUT_MODEL();
+
+    const std::unique_ptr<OnnxExecutionEngine> engine = make_engine();
+    const std::vector<float> input = make_input(1, 0.0F);
+
+    EXPECT_THROW(engine->run_inference(input, 1, kInputElems, 42), InferenceError);
+}
+
 TEST(OnnxEngineTest, RejectsNonAscendingBuckets) {
     OnnxExecutionEngine::Options options;
     options.model_path = model_path();
