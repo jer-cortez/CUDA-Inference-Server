@@ -185,19 +185,35 @@ async def measure(
         key: stats_after.get(key, 0) - baseline.get(key, 0)
         for key in ("total_batches", "total_requests")
     }
+    # total_batches/total_requests above are differenced, so they describe this
+    # run. The rest are the scheduler's own cumulative counters and cannot be
+    # differenced meaningfully -- a high-water mark and two running averages --
+    # so they are named to say so. observed_mean_batch, derived from the
+    # differenced pair, is the per-run figure to quote.
     measured_stats["max_batch_size_seen"] = stats_after.get("max_batch_size_seen", 0)
-    measured_stats["avg_queue_wait_ms"] = stats_after.get("avg_queue_wait_ms", 0.0)
-    measured_stats["avg_exec_ms"] = stats_after.get("avg_exec_ms", 0.0)
+    measured_stats["cumulative_avg_queue_wait_ms"] = stats_after.get("avg_queue_wait_ms", 0.0)
+    measured_stats["cumulative_avg_exec_ms"] = stats_after.get("avg_exec_ms", 0.0)
     measured_stats["engine"] = stats_after.get("engine", "unknown")
 
     ok = [r for r in results if r.ok]
     failures = len(results) - len(ok)
 
-    if mode == "dynamic" and require_onnx and measured_stats["max_batch_size_seen"] <= 1:
+    # Only meaningful above concurrency 1: with a single client there is never
+    # more than one request in flight, so a batch size of 1 is the correct
+    # outcome, not a failure. Enforced above that, where failing to coalesce
+    # would mean the two modes are the same configuration compared against
+    # itself.
+    if (
+        mode == "dynamic"
+        and require_onnx
+        and concurrency > 1
+        and measured_stats["max_batch_size_seen"] <= 1
+    ):
         raise SystemExit(
-            "refusing to report: dynamic mode never coalesced (max_batch_size_seen <= 1), "
-            "so this would be two identical configurations compared against each other. "
-            "Raise --concurrency, or CUDA_DB_MAX_WAIT_MS, or check the executor pool size."
+            f"refusing to report: dynamic mode never coalesced at concurrency={concurrency} "
+            "(max_batch_size_seen <= 1), so this would be two identical configurations "
+            "compared against each other. Raise CUDA_DB_MAX_WAIT_MS, or check that "
+            "--executor-workers is at least the concurrency level."
         )
 
     return RunResult(
