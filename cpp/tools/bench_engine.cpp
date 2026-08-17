@@ -8,15 +8,19 @@
 // server). If per-request cost is flat or rising here, batching itself is not
 // paying and no amount of scheduler tuning will fix it.
 //
-//   ./build-cuda/cpp/tools/bench_engine models/resnet50.onnx
+// The binary lands in the binary dir of the CMakeLists that declares it
+// (cpp/), not alongside this source file:
+//
+//   ./build-cuda/cpp/bench_engine models/resnet50.onnx
 
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
-#include <utility>
 #include <iomanip>
 #include <iostream>
+#include <random>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "cuda_db/engine/onnx_execution_engine.hpp"
@@ -91,6 +95,53 @@ int main(int argc, char** argv) {
                   << baseline_per_request << " ms/request ("
                   << (1000.0 / baseline_per_request) << " req/s ceiling)\n";
     }
+
+    // The measurements above hold the shape constant, which is exactly what a
+    // real dynamic batcher does NOT do: it emits whatever batch size happened
+    // to accumulate. This phase reproduces that churn, because an ORT
+    // dynamic-shape session re-plans per distinct input shape and that cost
+    // would be invisible to a fixed-shape benchmark.
+    std::cout << "\n--- varying batch size (what the scheduler actually produces) ---\n";
+
+    // Pre-warm every shape so this measures steady-state shape switching, not
+    // first-touch allocation.
+    for (std::size_t batch : {1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u}) {
+        std::vector<float> input(batch * kInputElems, 0.5F);
+        for (int i = 0; i < 3; ++i) {
+            engine.run_inference(input, batch, kInputElems, kOutputElems);
+        }
+    }
+
+    std::mt19937 rng{1234};
+    std::uniform_int_distribution<std::size_t> pick{1, 8};
+
+    std::vector<double> churn_samples;
+    double churn_requests = 0.0;
+    for (int i = 0; i < 60; ++i) {
+        const std::size_t batch = pick(rng);
+        std::vector<float> input(batch * kInputElems, 0.5F);
+
+        const auto start = std::chrono::steady_clock::now();
+        engine.run_inference(input, batch, kInputElems, kOutputElems);
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+
+        churn_samples.push_back(
+            std::chrono::duration<double, std::milli>(elapsed).count());
+        churn_requests += static_cast<double>(batch);
+    }
+
+    double churn_total = 0.0;
+    for (double sample : churn_samples) {
+        churn_total += sample;
+    }
+
+    std::cout << "median batch ms   : " << std::fixed << std::setprecision(2)
+              << median_ms(churn_samples) << "\n";
+    std::cout << "per-request ms    : " << (churn_total / churn_requests) << "\n";
+    std::cout << "req/s             : " << (1000.0 * churn_requests / churn_total) << "\n";
+    std::cout << "\nCompare against the fixed-shape rows above. If these are far worse,\n"
+                 "the cost is shape switching, and the fix is to pad batches to a small\n"
+                 "set of fixed sizes so the session only ever sees a few shapes.\n";
 
     return 0;
 }
