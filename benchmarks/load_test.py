@@ -240,11 +240,23 @@ class ServerProcess:
     """Runs uvicorn with a mode's batching config, since those are read at startup."""
 
     def __init__(self, mode: str, port: int, model_path: str, input_elems: int,
-                 output_elems: int, executor_workers: int):
+                 output_elems: int, executor_workers: int,
+                 max_wait_ms: int | None = None, max_batch_size: int | None = None):
         self.mode = mode
         self.port = port
         env = os.environ.copy()
         env.update(MODE_CONFIG[mode])
+
+        # Applied after MODE_CONFIG, which would otherwise silently win: the
+        # mode defaults are a starting point, and the batching window is the
+        # main knob worth sweeping. Only meaningful for dynamic mode -- forcing
+        # a wait or a batch size onto "serial" would stop it being the
+        # one-at-a-time baseline the comparison is against.
+        if mode == "dynamic":
+            if max_wait_ms is not None:
+                env["CUDA_DB_MAX_WAIT_MS"] = str(max_wait_ms)
+            if max_batch_size is not None:
+                env["CUDA_DB_MAX_BATCH_SIZE"] = str(max_batch_size)
         env["CUDA_DB_INPUT_ELEMS"] = str(input_elems)
         env["CUDA_DB_OUTPUT_ELEMS"] = str(output_elems)
         env["CUDA_DB_EXECUTOR_WORKERS"] = str(executor_workers)
@@ -374,7 +386,8 @@ async def main_async(args: argparse.Namespace) -> None:
                     args.input_elems, require_onnx))
         else:
             with ServerProcess(mode, args.port, model_path, args.input_elems,
-                               args.output_elems, args.executor_workers) as base_url:
+                               args.output_elems, args.executor_workers,
+                               args.max_wait_ms, args.max_batch_size) as base_url:
                 await wait_until_ready(base_url)
                 for concurrency in concurrencies:
                     print(f"running {mode} @ concurrency={concurrency} ...", flush=True)
@@ -418,6 +431,15 @@ def main() -> None:
     parser.add_argument("--input-elems", type=int, default=DEFAULT_INPUT_ELEMS)
     parser.add_argument("--output-elems", type=int, default=DEFAULT_OUTPUT_ELEMS)
     parser.add_argument("--executor-workers", type=int, default=16)
+    parser.add_argument("--max-wait-ms", type=int, default=None,
+                        help="override the dynamic-mode batching window (default 5). "
+                             "The main tuning knob: a wider window fills batches closer "
+                             "to max_batch_size, trading latency for throughput. Ignored "
+                             "for serial mode, which must stay the one-at-a-time baseline")
+    parser.add_argument("--max-batch-size", type=int, default=None,
+                        help="override the dynamic-mode batch cap (default 8). The ONNX "
+                             "engine pads every batch to this size, so raising it also "
+                             "raises the cost of a partly-filled batch")
     parser.add_argument("--output", default="latest",
                         help="output file stem under benchmarks/results/")
     parser.add_argument("--allow-stub", action="store_true",
