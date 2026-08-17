@@ -94,6 +94,17 @@ different size per batch triggers a re-plan almost every call — measured at a
 distinct shapes cost as much as four, so only collapsing to one works. The cost
 is wasted compute on padded rows; the benefit is an order of magnitude more.
 
+**Device-resident I/O.** The engine preallocates pinned host and device buffers
+sized for the largest bucket and binds the device tensors through
+`Ort::IoBinding`, so ORT allocates and copies nothing per call and the padded
+tail of the input buffer is zeroed once rather than per request. The original
+host-pointer path is retained behind `use_io_binding` as both a fallback and the
+reference the bound path is tested against — the two must agree bit-for-bit.
+
+This measured ~6% faster at the engine and produced no end-to-end throughput
+change, because by then the engine was not the constraint. See
+[benchmarks.md](benchmarks.md#device-resident-io-a-real-engine-gain-that-bought-no-throughput).
+
 **Normalization boundary.** ResNet-50 expects ImageNet-normalized input. That
 happens once, on the CPU, in `python/cuda_db/preprocessing/image_utils.py`. The
 `normalize` CUDA kernel deliberately does **not** run in the ONNX path —
@@ -145,8 +156,10 @@ widening it past the default does not help here: it fills batches from 7.0 to
 - **The frontend caps throughput near 470 req/s.** Above concurrency 16 the
   bottleneck is FastAPI/uvicorn, not the scheduler — server-reported time inside
   `predict()` stays flat while client-observed latency climbs.
-- **~6 ms per batch cycle** is spent copying: once concatenating the batch, once
-  padding it. A persistent padded buffer written directly by the scheduler would
-  remove one.
+- **The scheduler still concatenates the batch on the host** (~4.8 MB per batch)
+  before the engine sees it. The engine's own padding copy is gone — it stages
+  into a reused pinned buffer — but removing this one needs `IExecutionEngine` to
+  accept per-request buffers rather than one pre-joined vector, so the packing
+  could happen on-device instead.
 - **Low concurrency is worse than no batching**, structurally. Padding to a fixed
   shape means a batch of 1 does `max_batch_size` rows of work.

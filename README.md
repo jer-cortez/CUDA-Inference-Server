@@ -21,10 +21,10 @@ request at a time. Full methodology and raw data: [docs/benchmarks.md](docs/benc
 
 | @ concurrency 16 | serial (batch 1) | dynamic batching | change |
 |---|---|---|---|
-| throughput | 416 req/s | **478 req/s** | **1.15x** |
-| p50 latency | 35.3 ms | **28.0 ms** | 21% lower |
-| p99 latency | **51.0 ms** | 54.9 ms | 8% higher |
-| mean batch size | 1.0 | 7.0 | — |
+| throughput | 412 req/s | **481 req/s** | **1.17x** |
+| p50 latency | 35.6 ms | **27.5 ms** | 23% lower |
+| p99 latency | **51.5 ms** | 54.1 ms | 5% higher |
+| mean batch size | 1.0 | 7.1 | — |
 
 More throughput and a lower median, paid for in the tail — the batching tradeoff
 in its expected form. Below concurrency 16 batching loses (partly-filled batches

@@ -94,10 +94,10 @@ Raw data for every figure below: [`final.json`](final.json). Charts:
 
 | metric @ concurrency 16 | serial (batch 1) | dynamic batching | change |
 |---|---|---|---|
-| throughput | 416 req/s | **478 req/s** | **1.15x** |
-| p50 latency | 35.3 ms | **28.0 ms** | 21% lower |
-| p99 latency | **51.0 ms** | 54.9 ms | 8% higher |
-| mean batch size | 1.0 | 7.0 | — |
+| throughput | 412 req/s | **481 req/s** | **1.17x** |
+| p50 latency | 35.6 ms | **27.5 ms** | 23% lower |
+| p99 latency | **51.5 ms** | 54.1 ms | 5% higher |
+| mean batch size | 1.0 | 7.1 | — |
 
 This is the batching tradeoff in its expected form: more throughput and a lower
 median, paid for in the tail. Median improves because higher throughput drains
@@ -162,6 +162,39 @@ Two earlier hypotheses were wrong and are recorded here because the measurements
 that killed them are the useful part: exhaustive cuDNN algorithm search (changing
 it moved nothing) and GIL contention in the response path (measured at 0.079 ms
 per response, ~0.6 ms for a batch of eight — three orders of magnitude too small).
+
+### Device-resident I/O: a real engine gain that bought no throughput
+
+The engine originally handed ONNX Runtime a host pointer and let it allocate and
+copy per call. Replacing that with `Ort::IoBinding` over pre-allocated device
+buffers, staged through pinned host memory, measured as an improvement at the
+engine — on a uniform random 1-8 workload:
+
+| | host pointer | bound device buffers |
+|---|---|---|
+| median call | 12.23 ms | **10.90 ms** |
+| throughput | 371 req/s | **413 req/s** (+11%) |
+
+Per fixed shape, the gain is entirely in the *padded* cases (batch 1: 12.06 →
+10.83 ms; batch 4: 12.18 → 10.98 ms). At exactly batch 8 the bound path is
+marginally *slower* (10.85 → 11.06 ms), because the host path skips padding
+altogether there and wraps the caller's buffer with no copy at all, while the
+bound path always stages through pinned memory.
+
+End to end it moved almost nothing:
+
+| | before | after |
+|---|---|---|
+| server `exec ms` | 11.3 | **10.6** |
+| throughput @ concurrency 16 | 478 req/s | 481 req/s |
+| p99 penalty vs serial | +3.9 ms | **+2.7 ms** |
+
+The engine call really did get ~6% faster, and it did not show up as throughput,
+because the engine was no longer the constraint — the batch cycle is dominated by
+the queue wait and the HTTP layer above it. Kept anyway: correctness is verified
+bit-for-bit against the host path, tail latency improved, and the design removes
+per-call allocation. But the honest summary is that optimizing a component that
+is not the bottleneck produces exactly the result theory predicts, which is none.
 
 ### Remaining headroom
 
