@@ -194,6 +194,84 @@ TEST(OnnxEngineTest, BatchedRowMatchesSameInputRunAlone) {
     }
 }
 
+TEST(OnnxEngineTest, BucketForRoundsUpToConfiguredSizes) {
+    SKIP_WITHOUT_MODEL();
+
+    const std::unique_ptr<OnnxExecutionEngine> engine = make_engine();  // buckets 1,2,4,8
+
+    EXPECT_EQ(engine->bucket_for(1), 1u);
+    EXPECT_EQ(engine->bucket_for(2), 2u);
+    EXPECT_EQ(engine->bucket_for(3), 4u);
+    EXPECT_EQ(engine->bucket_for(5), 8u);
+    EXPECT_EQ(engine->bucket_for(8), 8u);
+    // Past the last bucket: run at its own size rather than fail.
+    EXPECT_EQ(engine->bucket_for(12), 12u);
+}
+
+// A padded batch must return only the caller's rows. If padding leaked, the
+// output would be longer than requested and the scheduler would map logits to
+// the wrong requests -- silently, since the row count would still look
+// plausible to anything not checking it.
+TEST(OnnxEngineTest, PaddedBatchReturnsOnlyRequestedRows) {
+    SKIP_WITHOUT_MODEL();
+
+    const std::unique_ptr<OnnxExecutionEngine> engine = make_engine();
+    ASSERT_EQ(engine->bucket_for(3), 4u) << "test assumes 3 pads up to 4";
+
+    const std::vector<float> input = make_input(3, 0.25F);
+    const std::vector<float> output =
+        engine->run_inference(input, 3, kInputElems, kOutputElems);
+
+    EXPECT_EQ(output.size(), 3 * kOutputElems);
+}
+
+// Padding must not perturb the real rows: a batch of 3 (padded to 4) has to
+// produce the same logits as each of those inputs run alone.
+TEST(OnnxEngineTest, PaddedBatchMatchesSoloRuns) {
+    SKIP_WITHOUT_MODEL();
+
+    const std::unique_ptr<OnnxExecutionEngine> engine = make_engine();
+
+    constexpr std::size_t kBatch = 3;
+    std::vector<float> batched(kBatch * kInputElems);
+    std::vector<std::vector<float>> rows;
+    for (std::size_t i = 0; i < kBatch; ++i) {
+        rows.push_back(make_input(1, static_cast<float>(i) + 0.5F));
+        std::copy(rows[i].begin(), rows[i].end(),
+                  batched.begin() + static_cast<std::ptrdiff_t>(i * kInputElems));
+    }
+
+    const std::vector<float> batched_output =
+        engine->run_inference(batched, kBatch, kInputElems, kOutputElems);
+    ASSERT_EQ(batched_output.size(), kBatch * kOutputElems);
+
+    for (std::size_t i = 0; i < kBatch; ++i) {
+        const std::vector<float> solo =
+            engine->run_inference(rows[i], 1, kInputElems, kOutputElems);
+        const float* batched_row = batched_output.data() + i * kOutputElems;
+
+        const auto batched_top = std::max_element(batched_row, batched_row + kOutputElems);
+        const auto solo_top = std::max_element(solo.begin(), solo.end());
+        ASSERT_EQ(std::distance(batched_row, batched_top),
+                  std::distance(solo.begin(), solo_top))
+            << "row " << i << ": padding changed the predicted class";
+
+        float max_diff = 0.0F;
+        for (std::size_t j = 0; j < kOutputElems; ++j) {
+            max_diff = std::max(max_diff, std::fabs(batched_row[j] - solo[j]));
+        }
+        EXPECT_LT(max_diff, 1e-2F) << "row " << i << ": largest drift " << max_diff;
+    }
+}
+
+TEST(OnnxEngineTest, RejectsNonAscendingBuckets) {
+    OnnxExecutionEngine::Options options;
+    options.model_path = model_path();
+    options.batch_buckets = {4, 2, 8};
+
+    EXPECT_THROW(OnnxExecutionEngine{std::move(options)}, InferenceError);
+}
+
 TEST(OnnxEngineTest, RejectsMismatchedInputLength) {
     SKIP_WITHOUT_MODEL();
 

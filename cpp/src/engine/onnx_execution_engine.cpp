@@ -105,6 +105,10 @@ OnnxExecutionEngine::OnnxExecutionEngine(Options options)
             "would then be a CPU number.");
     }
 
+    if (!std::is_sorted(options_.batch_buckets.begin(), options_.batch_buckets.end())) {
+        throw InferenceError("OnnxExecutionEngine: batch_buckets must be ascending");
+    }
+
     translate_ort_errors("failed to query model input/output names", [&] {
         Ort::AllocatorWithDefaultOptions allocator;
         // Locals, not members: the std::string assignments below copy the
@@ -115,29 +119,80 @@ OnnxExecutionEngine::OnnxExecutionEngine(Options options)
         output_name_ = output.get();
         return 0;
     });
+
+    if (options_.warm_buckets) {
+        warm_buckets();
+    }
+}
+
+/**
+ * @brief Runs one throwaway inference per bucket so each shape is planned.
+ * @details ORT plans and allocates workspace the first time it sees an input
+ * shape. Without this, the first real request at each bucket pays that cost and
+ * it shows up as a latency spike in p99 rather than as startup time.
+ *
+ * Shapes are assumed to be 3x224x224 per row, matching the rest of this class.
+ * Failures are deliberately swallowed: warmup is an optimization, and a model
+ * that cannot run a given bucket will report that clearly on the first real
+ * request rather than failing construction for a shape nobody may ever use.
+ */
+void OnnxExecutionEngine::warm_buckets() {
+    constexpr std::size_t kInputElems = 3 * 224 * 224;
+    constexpr std::size_t kOutputElems = 1000;
+
+    for (const std::size_t bucket : options_.batch_buckets) {
+        if (bucket == 0) {
+            continue;
+        }
+        try {
+            const std::vector<float> input(bucket * kInputElems, 0.0F);
+            run_inference(input, bucket, kInputElems, kOutputElems);
+        } catch (const std::exception&) {
+            // See above: not fatal.
+        }
+    }
 }
 
 // Defined here, not defaulted in the header, because Impl is incomplete there.
 OnnxExecutionEngine::~OnnxExecutionEngine() = default;
 
 /**
- * @brief Runs one batch through the model.
- * @details Builds the input tensor shape from `batch_size` on every call
- * rather than caching it -- that is precisely what lets a single session serve
- * the variable batch sizes the scheduler produces, and it depends on the model
- * having been exported with a dynamic batch axis (see models/export_resnet.py).
+ * @brief Smallest configured bucket >= batch_size.
+ * @details Returns `batch_size` unchanged when it exceeds every bucket, which
+ * runs at its own shape and pays the re-plan cost rather than failing.
+ */
+std::size_t OnnxExecutionEngine::bucket_for(std::size_t batch_size) const {
+    for (const std::size_t bucket : options_.batch_buckets) {
+        if (batch_size <= bucket) {
+            return bucket;
+        }
+    }
+    return batch_size;
+}
+
+/**
+ * @brief Runs one batch through the model, padded to a bucket size.
+ * @details The batch is padded up to the next configured bucket and the extra
+ * output rows are dropped, so the session only ever sees a handful of input
+ * shapes.
  *
- * The input buffer is wrapped, not copied: Ort::Value::CreateTensor over
- * non-const data borrows `batched_input` for the duration of the call, and the
- * CUDA EP performs the host-to-device transfer internally.
+ * That padding is what makes dynamic batching viable here at all. An ORT
+ * dynamic-shape session re-plans per distinct shape; feeding it the raw batch
+ * size (which varies on nearly every batch) measured 15.14 ms/request against
+ * 1.44 ms/request at a fixed shape on an RTX A4000 -- a 10x penalty that left
+ * the batcher slower than serving requests one at a time. Padded rows waste a
+ * little compute; re-planning wastes an order of magnitude more.
+ *
+ * The unpadded path still wraps `batched_input` without copying. The padded
+ * path necessarily copies once into a zero-filled buffer.
  *
  * @param batched_input `batch_size * input_elems` already-normalized floats,
  * NCHW. See the header's input contract -- this engine does not normalize.
  * @param batch_size Number of request rows in the batch.
  * @param input_elems Floats per input row (3 * 224 * 224 for ResNet-50).
  * @param output_elems Floats per output row (1000 ImageNet logits).
- * @return std::vector<float> `batch_size * output_elems` logits, row-major,
- * in the same row order as the input.
+ * @return std::vector<float> `batch_size * output_elems` logits, row-major, in
+ * the same row order as the input. Padded rows are not returned.
  * @throws InferenceError If the input length is inconsistent, the model
  * returns an unexpected element count, or the session fails.
  */
@@ -152,15 +207,27 @@ std::vector<float> OnnxExecutionEngine::run_inference(const std::vector<float>& 
         return {};
     }
 
+    const std::size_t padded_batch = bucket_for(batch_size);
+
+    // Only materialized when padding is actually needed, so an exact-bucket
+    // batch keeps the zero-copy path.
+    std::vector<float> padded_input;
+    const float* input_data = batched_input.data();
+    if (padded_batch != batch_size) {
+        padded_input.assign(padded_batch * input_elems, 0.0F);
+        std::copy(batched_input.begin(), batched_input.end(), padded_input.begin());
+        input_data = padded_input.data();
+    }
+
     return translate_ort_errors("ONNX Runtime inference failed", [&] {
         const std::array<std::int64_t, 4> input_shape{
-            static_cast<std::int64_t>(batch_size), 3, 224, 224};
+            static_cast<std::int64_t>(padded_batch), 3, 224, 224};
 
         // const_cast is required by the ORT C++ API, which takes a mutable
         // pointer even for inputs it only reads. The buffer is not modified.
         Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-            impl_->memory_info, const_cast<float*>(batched_input.data()),
-            batched_input.size(), input_shape.data(), input_shape.size());
+            impl_->memory_info, const_cast<float*>(input_data), padded_batch * input_elems,
+            input_shape.data(), input_shape.size());
 
         const char* input_names[] = {input_name_.c_str()};
         const char* output_names[] = {output_name_.c_str()};
@@ -176,14 +243,16 @@ std::vector<float> OnnxExecutionEngine::run_inference(const std::vector<float>& 
         const std::size_t produced =
             static_cast<std::size_t>(
                 outputs.front().GetTensorTypeAndShapeInfo().GetElementCount());
-        const std::size_t expected = batch_size * output_elems;
+        const std::size_t expected = padded_batch * output_elems;
         if (produced != expected) {
             throw InferenceError("model produced " + std::to_string(produced) +
                                  " elements, expected " + std::to_string(expected));
         }
 
+        // Truncate to the real batch: rows beyond batch_size are padding and
+        // belong to no request.
         const float* data = outputs.front().GetTensorData<float>();
-        return std::vector<float>(data, data + produced);
+        return std::vector<float>(data, data + batch_size * output_elems);
     });
 }
 

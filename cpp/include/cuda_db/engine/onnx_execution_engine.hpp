@@ -35,6 +35,28 @@ public:
     struct Options {
         std::string model_path;
         int device_id = 0;
+
+        // Batch sizes the session is allowed to see. A batch is padded up to
+        // the next value here and the extra output rows are discarded.
+        //
+        // This is not a micro-optimization -- it is the difference between the
+        // batcher working and not. An ORT dynamic-shape session re-plans per
+        // distinct input shape, and a scheduler naturally emits a different
+        // size on nearly every batch. Measured on an RTX A4000 with ResNet-50:
+        // 1.44 ms/request at a fixed batch of 4, versus 15.14 ms/request when
+        // the batch size varied over 1-8 -- a 10x regression that made dynamic
+        // batching roughly 5x SLOWER end to end than serving one request at a
+        // time. Padding trades a little wasted compute on the padded rows for
+        // a handful of shapes that stay warm.
+        //
+        // Must be ascending. A batch larger than the last entry is run at its
+        // own size, paying the re-plan cost.
+        std::vector<std::size_t> batch_buckets{1, 2, 4, 8};
+
+        // Run one throwaway inference per bucket at construction. Without it
+        // the first real request at each shape pays the planning cost, which
+        // lands in p99 rather than in startup where it belongs.
+        bool warm_buckets = true;
         // ORT falls back to the CPU provider when the CUDA EP cannot load,
         // which yields correct answers at a fraction of the speed -- and a
         // meaningless throughput benchmark. When true, construction fails
@@ -68,7 +90,14 @@ public:
     const std::string& input_name() const noexcept { return input_name_; }
     const std::string& output_name() const noexcept { return output_name_; }
 
+    // Smallest configured bucket >= batch_size, or batch_size itself when it
+    // exceeds every bucket. Exposed so tests can assert the padding policy
+    // without inferring it from timings.
+    std::size_t bucket_for(std::size_t batch_size) const;
+
 private:
+    void warm_buckets();
+
     // ORT types are confined to the .cpp so this header stays includable from
     // translation units built without ONNX Runtime on the include path.
     struct Impl;
