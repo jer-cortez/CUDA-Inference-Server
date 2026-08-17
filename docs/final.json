@@ -1,0 +1,486 @@
+{
+  "metadata": {
+    "timestamp": "2026-08-17T03:50:08.682293+00:00",
+    "gpu": "NVIDIA RTX A4000",
+    "model_path": "models/resnet50.onnx",
+    "input_elems": 150528,
+    "output_elems": 1000,
+    "executor_workers": 16,
+    "warmup_requests": 50,
+    "num_requests": 300,
+    "mode_config": {
+      "dynamic": {
+        "CUDA_DB_MAX_BATCH_SIZE": "8",
+        "CUDA_DB_MAX_WAIT_MS": "5"
+      },
+      "serial": {
+        "CUDA_DB_MAX_BATCH_SIZE": "1",
+        "CUDA_DB_MAX_WAIT_MS": "0"
+      }
+    }
+  },
+  "runs": [
+    {
+      "mode": "dynamic",
+      "concurrency": 1,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 6.157275898847729,
+      "throughput_rps": 48.72284512313991,
+      "latency_ms": {
+        "p50": 19.37327580526471,
+        "p90": 19.623430911451578,
+        "p99": 20.004254300147295,
+        "mean": 19.403176079504192,
+        "min": 18.523803912103176,
+        "max": 20.671008620411158
+      },
+      "server_latency_ms": {
+        "p50": 16.40941109508276,
+        "p90": 16.500254161655903,
+        "p99": 16.828257124871016,
+        "mean": 16.421869037051994,
+        "min": 16.268834937363863,
+        "max": 16.933335922658443
+      },
+      "server_stats": {
+        "total_batches": 300,
+        "total_requests": 300,
+        "max_batch_size_seen": 1,
+        "cumulative_avg_queue_wait_ms": 5.093925714285714,
+        "cumulative_avg_exec_ms": 10.887557142857142,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 1.0
+    },
+    {
+      "mode": "dynamic",
+      "concurrency": 2,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 3.496023857034743,
+      "throughput_rps": 85.81177139175874,
+      "latency_ms": {
+        "p50": 21.947030909359455,
+        "p90": 22.428974974900484,
+        "p99": 24.32860992848873,
+        "mean": 21.859023477882147,
+        "min": 19.1732170060277,
+        "max": 26.05731086805463
+      },
+      "server_latency_ms": {
+        "p50": 16.61944016814232,
+        "p90": 16.77249977365136,
+        "p99": 17.227845266461372,
+        "mean": 16.59541419086357,
+        "min": 15.926395077258348,
+        "max": 17.34660007059574
+      },
+      "server_stats": {
+        "total_batches": 150,
+        "total_requests": 300,
+        "max_batch_size_seen": 2,
+        "cumulative_avg_queue_wait_ms": 4.916844285714285,
+        "cumulative_avg_exec_ms": 10.902499047619047,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 2.0
+    },
+    {
+      "mode": "dynamic",
+      "concurrency": 4,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 2.075706907082349,
+      "throughput_rps": 144.52907536049267,
+      "latency_ms": {
+        "p50": 25.840590242296457,
+        "p90": 28.59477698802948,
+        "p99": 31.55210940167308,
+        "mean": 25.53651984781027,
+        "min": 18.168800976127386,
+        "max": 32.54319028928876
+      },
+      "server_latency_ms": {
+        "p50": 15.670558903366327,
+        "p90": 17.446349374949932,
+        "p99": 18.366055097430944,
+        "mean": 15.932855351517597,
+        "min": 13.140267226845026,
+        "max": 19.241496454924345
+      },
+      "server_stats": {
+        "total_batches": 75,
+        "total_requests": 300,
+        "max_batch_size_seen": 4,
+        "cumulative_avg_queue_wait_ms": 4.262615238095238,
+        "cumulative_avg_exec_ms": 10.918763458401305,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 4.0
+    },
+    {
+      "mode": "dynamic",
+      "concurrency": 8,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 1.219902296550572,
+      "throughput_rps": 245.921333903779,
+      "latency_ms": {
+        "p50": 31.01264499127865,
+        "p90": 34.26822414621711,
+        "p99": 38.891016971319914,
+        "mean": 30.380523473334808,
+        "min": 17.360365949571133,
+        "max": 43.891035951673985
+      },
+      "server_latency_ms": {
+        "p50": 23.1905709952116,
+        "p90": 26.517094112932682,
+        "p99": 28.387893922626972,
+        "mean": 22.263449754876394,
+        "min": 13.23129003867507,
+        "max": 28.803502675145864
+      },
+      "server_stats": {
+        "total_batches": 72,
+        "total_requests": 300,
+        "max_batch_size_seen": 8,
+        "cumulative_avg_queue_wait_ms": 5.459832142857143,
+        "cumulative_avg_exec_ms": 10.909648493543758,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 4.17
+    },
+    {
+      "mode": "dynamic",
+      "concurrency": 16,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 0.6277151359245181,
+      "throughput_rps": 477.92379509560624,
+      "latency_ms": {
+        "p50": 28.040744829922915,
+        "p90": 38.582360837608576,
+        "p99": 54.887874983251095,
+        "mean": 30.144787618579965,
+        "min": 18.42803182080388,
+        "max": 58.39720508083701
+      },
+      "server_latency_ms": {
+        "p50": 19.7595302015543,
+        "p90": 26.84418484568596,
+        "p99": 29.030464123934507,
+        "mean": 20.747507301469643,
+        "min": 12.89911987259984,
+        "max": 31.686414033174515
+      },
+      "server_stats": {
+        "total_batches": 43,
+        "total_requests": 300,
+        "max_batch_size_seen": 8,
+        "cumulative_avg_queue_wait_ms": 5.768289142857143,
+        "cumulative_avg_exec_ms": 10.911138851802404,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 6.98
+    },
+    {
+      "mode": "dynamic",
+      "concurrency": 32,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 1.218398202676326,
+      "throughput_rps": 246.22492001467322,
+      "latency_ms": {
+        "p50": 93.80432032048702,
+        "p90": 227.7906872332096,
+        "p99": 432.02779395505786,
+        "mean": 120.37012771858524,
+        "min": 29.36622081324458,
+        "max": 654.1705117560923
+      },
+      "server_latency_ms": {
+        "p50": 21.9930880703032,
+        "p90": 29.366310220211744,
+        "p99": 47.67988622188568,
+        "mean": 22.752996877146263,
+        "min": 12.12502084672451,
+        "max": 49.97817659750581
+      },
+      "server_stats": {
+        "total_batches": 72,
+        "total_requests": 300,
+        "max_batch_size_seen": 8,
+        "cumulative_avg_queue_wait_ms": 6.140842380952381,
+        "cumulative_avg_exec_ms": 10.90096497584541,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 4.17
+    },
+    {
+      "mode": "dynamic",
+      "concurrency": 64,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 2.084058064967394,
+      "throughput_rps": 143.9499239694618,
+      "latency_ms": {
+        "p50": 224.8202497139573,
+        "p90": 899.047854822129,
+        "p99": 1599.406773224473,
+        "mean": 393.0290212947875,
+        "min": 69.16300626471639,
+        "max": 1766.481965314597
+      },
+      "server_latency_ms": {
+        "p50": 21.51282597333193,
+        "p90": 67.45717907324433,
+        "p99": 89.67377059161663,
+        "mean": 29.844748141864937,
+        "min": 11.42137497663498,
+        "max": 91.02251008152962
+      },
+      "server_stats": {
+        "total_batches": 119,
+        "total_requests": 300,
+        "max_batch_size_seen": 8,
+        "cumulative_avg_queue_wait_ms": 6.520128571428572,
+        "cumulative_avg_exec_ms": 10.87843396226415,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 2.52
+    },
+    {
+      "mode": "serial",
+      "concurrency": 1,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 2.078874707687646,
+      "throughput_rps": 144.30884116806303,
+      "latency_ms": {
+        "p50": 6.107822060585022,
+        "p90": 6.304244045168161,
+        "p99": 6.7965080961585045,
+        "mean": 6.007196105395754,
+        "min": 5.239943973720074,
+        "max": 23.4243948943913
+      },
+      "server_latency_ms": {
+        "p50": 3.130991943180561,
+        "p90": 3.2172263599932194,
+        "p99": 3.434897866100073,
+        "mean": 3.1459234546249113,
+        "min": 3.0002743005752563,
+        "max": 3.64859402179718
+      },
+      "server_stats": {
+        "total_batches": 300,
+        "total_requests": 300,
+        "max_batch_size_seen": 1,
+        "cumulative_avg_queue_wait_ms": 0.029725714285714286,
+        "cumulative_avg_exec_ms": 2.608362857142857,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 1.0
+    },
+    {
+      "mode": "serial",
+      "concurrency": 2,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 0.8099354202859104,
+      "throughput_rps": 370.3999016293161,
+      "latency_ms": {
+        "p50": 4.379972815513611,
+        "p90": 5.584027152508497,
+        "p99": 6.773143075406551,
+        "mean": 4.759115277168651,
+        "min": 3.9907540194690228,
+        "max": 9.835505858063698
+      },
+      "server_latency_ms": {
+        "p50": 2.6664002798497677,
+        "p90": 3.3924891613423824,
+        "p99": 4.393288400024176,
+        "mean": 2.891311173637708,
+        "min": 2.5651678442955017,
+        "max": 5.247838795185089
+      },
+      "server_stats": {
+        "total_batches": 300,
+        "total_requests": 300,
+        "max_batch_size_seen": 1,
+        "cumulative_avg_queue_wait_ms": 0.07162285714285714,
+        "cumulative_avg_exec_ms": 2.3950342857142854,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 1.0
+    },
+    {
+      "mode": "serial",
+      "concurrency": 4,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 0.7037599417380989,
+      "throughput_rps": 426.28172222914566,
+      "latency_ms": {
+        "p50": 8.475984912365675,
+        "p90": 8.737331721931696,
+        "p99": 10.03109710291028,
+        "mean": 8.525604556004206,
+        "min": 7.1110050193965435,
+        "max": 16.505473759025335
+      },
+      "server_latency_ms": {
+        "p50": 6.9792550057172775,
+        "p90": 7.255428936332464,
+        "p99": 8.010552264750004,
+        "mean": 6.802529958076775,
+        "min": 3.161038737744093,
+        "max": 9.338232222944498
+      },
+      "server_stats": {
+        "total_batches": 300,
+        "total_requests": 300,
+        "max_batch_size_seen": 1,
+        "cumulative_avg_queue_wait_ms": 1.3068285714285715,
+        "cumulative_avg_exec_ms": 2.315544761904762,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 1.0
+    },
+    {
+      "mode": "serial",
+      "concurrency": 8,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 0.7130709830671549,
+      "throughput_rps": 420.71547871657947,
+      "latency_ms": {
+        "p50": 17.40804733708501,
+        "p90": 17.737442161887884,
+        "p99": 25.46995598822832,
+        "mean": 17.628810200840235,
+        "min": 16.178503166884184,
+        "max": 33.1179010681808
+      },
+      "server_latency_ms": {
+        "p50": 15.919131226837635,
+        "p90": 16.188132110983133,
+        "p99": 16.745388973504305,
+        "mean": 15.650259900527695,
+        "min": 3.2804859802126884,
+        "max": 17.577096819877625
+      },
+      "server_stats": {
+        "total_batches": 300,
+        "total_requests": 300,
+        "max_batch_size_seen": 1,
+        "cumulative_avg_queue_wait_ms": 4.098544285714286,
+        "cumulative_avg_exec_ms": 2.2772878571428574,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 1.0
+    },
+    {
+      "mode": "serial",
+      "concurrency": 16,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 0.7218790892511606,
+      "throughput_rps": 415.58206141031764,
+      "latency_ms": {
+        "p50": 35.33968701958656,
+        "p90": 35.72712326422334,
+        "p99": 50.969649106264114,
+        "mean": 35.60685178885857,
+        "min": 26.652330067008734,
+        "max": 56.118770968168974
+      },
+      "server_latency_ms": {
+        "p50": 33.84001087397337,
+        "p90": 34.231053199619055,
+        "p99": 34.4638149254024,
+        "mean": 32.6712703347827,
+        "min": 4.726469982415438,
+        "max": 34.87929282709956
+      },
+      "server_stats": {
+        "total_batches": 300,
+        "total_requests": 300,
+        "max_batch_size_seen": 1,
+        "cumulative_avg_queue_wait_ms": 8.983815428571429,
+        "cumulative_avg_exec_ms": 2.2539805714285714,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 1.0
+    },
+    {
+      "mode": "serial",
+      "concurrency": 32,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 0.7490975931286812,
+      "throughput_rps": 400.4818634472178,
+      "latency_ms": {
+        "p50": 71.11651310697198,
+        "p90": 71.64664892479777,
+        "p99": 111.73423659056425,
+        "mean": 72.54895308054984,
+        "min": 55.80097809433937,
+        "max": 118.24044492095709
+      },
+      "server_latency_ms": {
+        "p50": 69.60727041587234,
+        "p90": 69.92597505450249,
+        "p99": 70.20753901451826,
+        "mean": 65.91458392329514,
+        "min": 9.413495194166899,
+        "max": 70.397038012743
+      },
+      "server_stats": {
+        "total_batches": 300,
+        "total_requests": 300,
+        "max_batch_size_seen": 1,
+        "cumulative_avg_queue_wait_ms": 12.687418571428573,
+        "cumulative_avg_exec_ms": 2.2388923809523806,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 1.0
+    },
+    {
+      "mode": "serial",
+      "concurrency": 64,
+      "num_requests": 300,
+      "failures": 0,
+      "wall_clock_s": 1.7349964929744601,
+      "throughput_rps": 172.91101233621694,
+      "latency_ms": {
+        "p50": 210.25444706901908,
+        "p90": 705.3695870563388,
+        "p99": 1334.9190428853035,
+        "mean": 324.23901546436053,
+        "min": 62.832522206008434,
+        "max": 1443.0438205599785
+      },
+      "server_latency_ms": {
+        "p50": 3.640619106590748,
+        "p90": 113.29778470098972,
+        "p99": 124.25529910251498,
+        "mean": 30.741311047847073,
+        "min": 2.501558046787977,
+        "max": 126.33986491709948
+      },
+      "server_stats": {
+        "total_batches": 300,
+        "total_requests": 300,
+        "max_batch_size_seen": 1,
+        "cumulative_avg_queue_wait_ms": 12.697018775510204,
+        "cumulative_avg_exec_ms": 2.258851020408163,
+        "engine": "onnx"
+      },
+      "observed_mean_batch": 1.0
+    }
+  ]
+}
