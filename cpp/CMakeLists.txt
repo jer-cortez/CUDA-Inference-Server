@@ -60,6 +60,15 @@ if(CUDA_DB_ENABLE_ONNX)
     )
     target_link_libraries(cuda_db_core PUBLIC onnxruntime::onnxruntime)
     target_compile_definitions(cuda_db_core PUBLIC CUDA_DB_ENABLE_ONNX=1)
+
+    # Diagnostic: times the engine with no scheduler/HTTP/Python in the path, to
+    # separate "batching does not pay on this model" from "something above the
+    # engine is the bottleneck".
+    add_executable(bench_engine tools/bench_engine.cpp)
+    target_link_libraries(bench_engine PRIVATE cuda_db_core)
+    get_filename_component(CUDA_DB_ORT_LIBDIR "${ONNXRUNTIME_LIBRARY}" DIRECTORY)
+    set_target_properties(bench_engine PROPERTIES
+        BUILD_RPATH "${CUDA_DB_ORT_LIBDIR}")
 endif()
 
 if(CUDA_DB_BUILD_TESTS)
