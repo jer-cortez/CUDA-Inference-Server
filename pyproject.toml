@@ -27,6 +27,14 @@ dev = [
 images = [
     "pillow>=10.0",
 ]
+# Load-test harness only (benchmarks/). httpx also appears in dev, which is
+# harmless -- it is listed here so `pip install -e ".[bench]"` is sufficient on
+# a machine that only needs to run benchmarks.
+bench = [
+    "httpx>=0.27",
+    "matplotlib>=3.8",
+    "uvicorn>=0.27",
+]
 
 [tool.scikit-build]
 wheel.packages = ["python/cuda_db"]
