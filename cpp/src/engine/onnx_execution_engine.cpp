@@ -69,6 +69,18 @@ OnnxExecutionEngine::OnnxExecutionEngine(Options options)
         // handed straight to the provider.
         OrtCUDAProviderOptions cuda_options{};
         cuda_options.device_id = options_.device_id;
+
+        // Critical for a dynamic batcher, and NOT the value {} gives us:
+        // OrtCudnnConvAlgoSearchExhaustive is enum 0, so zero-initialization
+        // silently selects an exhaustive cuDNN algorithm benchmark that re-runs
+        // for every new input shape. A batch-size-1 server sees one shape and
+        // pays it once; this server produces a different shape per batch size,
+        // so the search fires repeatedly during serving and costs far more than
+        // batching saves -- measured at 0.1-0.7x the throughput of batch-size-1
+        // before this line existed, worst where batch sizes varied most.
+        // Heuristic picks an algorithm from cuDNN's cost model instead, which is
+        // effectively free per shape.
+        cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchHeuristic;
         impl_->session_options.AppendExecutionProvider_CUDA(cuda_options);
         impl_->session_options.SetGraphOptimizationLevel(
             GraphOptimizationLevel::ORT_ENABLE_ALL);

@@ -384,9 +384,12 @@ def main() -> None:
                         help="comma-separated concurrency levels")
     parser.add_argument("--num-requests", type=int, default=300,
                         help="measured requests per concurrency level")
-    parser.add_argument("--warmup", type=int, default=20,
+    parser.add_argument("--warmup", type=int, default=50,
                         help="discarded requests before measuring; do not set to 0 "
-                             "unless the server is already warm")
+                             "unless the server is already warm. Sized to cover the "
+                             "range of batch shapes a run will produce, not just the "
+                             "first one: ORT allocates workspace per input shape, and "
+                             "a dynamic batcher emits several")
     parser.add_argument("--url", default="",
                         help="benchmark an already-running server instead of spawning one")
     parser.add_argument("--port", type=int, default=8123)
