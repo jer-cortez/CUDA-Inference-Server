@@ -63,6 +63,11 @@ class RunResult:
     wall_clock_s: float
     throughput_rps: float
     latency_ms: dict[str, float]
+    # The server's own measurement of time inside predict(), i.e. queueing plus
+    # inference. Reported next to the client-observed figure because the gap
+    # between them localizes a bottleneck: a large gap is HTTP/uvicorn/client
+    # overhead, a small one means the time really is in the scheduler.
+    server_latency_ms: dict[str, float] = field(default_factory=dict)
     server_stats: dict = field(default_factory=dict)
 
     @property
@@ -224,6 +229,9 @@ async def measure(
         wall_clock_s=wall_clock_s,
         throughput_rps=len(ok) / wall_clock_s if wall_clock_s > 0 else 0.0,
         latency_ms=percentiles([r.latency_s * 1000.0 for r in ok]),
+        server_latency_ms=percentiles(
+            [r.server_latency_ms for r in ok if r.server_latency_ms is not None]
+        ),
         server_stats=measured_stats,
     )
 
@@ -309,14 +317,28 @@ def gpu_name() -> str:
 
 
 def print_summary(results: list[RunResult]) -> None:
-    print(f"\n{'mode':<9}{'conc':>6}{'rps':>10}{'p50 ms':>10}{'p90 ms':>10}"
-          f"{'p99 ms':>10}{'batch':>8}{'fail':>6}")
-    print("-" * 69)
+    # srv p50 is the server's own time inside predict(); "gap" is what the
+    # client saw minus that, i.e. everything outside the scheduler -- HTTP,
+    # uvicorn, the executor queue, and the client itself. A large gap means the
+    # bottleneck is not where a scheduler-focused reading would assume.
+    print(f"\n{'mode':<9}{'conc':>6}{'rps':>10}{'p50 ms':>10}{'p99 ms':>10}"
+          f"{'srv p50':>10}{'gap ms':>9}{'batch':>7}{'fail':>6}")
+    print("-" * 77)
     for run in results:
+        server_p50 = run.server_latency_ms.get("p50", 0.0)
+        gap = run.latency_ms["p50"] - server_p50
         print(f"{run.mode:<9}{run.concurrency:>6}{run.throughput_rps:>10.1f}"
-              f"{run.latency_ms['p50']:>10.1f}{run.latency_ms['p90']:>10.1f}"
-              f"{run.latency_ms['p99']:>10.1f}{run.observed_mean_batch:>8.1f}"
+              f"{run.latency_ms['p50']:>10.1f}{run.latency_ms['p99']:>10.1f}"
+              f"{server_p50:>10.1f}{gap:>9.1f}{run.observed_mean_batch:>7.1f}"
               f"{run.failures:>6}")
+
+    print(f"\n{'mode':<9}{'conc':>6}{'queue wait ms':>16}{'exec ms':>10}"
+          "   (server counters, cumulative)")
+    print("-" * 62)
+    for run in results:
+        print(f"{run.mode:<9}{run.concurrency:>6}"
+              f"{run.server_stats.get('cumulative_avg_queue_wait_ms', 0.0):>16.1f}"
+              f"{run.server_stats.get('cumulative_avg_exec_ms', 0.0):>10.1f}")
 
     # The headline comparison, printed only where both modes ran the same
     # concurrency so the speedup is apples-to-apples.
