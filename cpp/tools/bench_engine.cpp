@@ -37,13 +37,38 @@ double median_ms(std::vector<double> samples) {
     return samples[samples.size() / 2];
 }
 
+std::vector<std::size_t> parse_buckets(const std::string& spec) {
+    std::vector<std::size_t> buckets;
+    std::size_t start = 0;
+    while (start <= spec.size()) {
+        const std::size_t comma = spec.find(',', start);
+        const std::string token = spec.substr(
+            start, comma == std::string::npos ? std::string::npos : comma - start);
+        if (!token.empty()) {
+            buckets.push_back(static_cast<std::size_t>(std::stoul(token)));
+        }
+        if (comma == std::string::npos) {
+            break;
+        }
+        start = comma + 1;
+    }
+    return buckets;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     const std::string model_path = argc > 1 ? argv[1] : "models/resnet50.onnx";
+    // Second argument is the bucket set, so the padding policy can be explored
+    // without a rebuild:
+    //   "1,2,4,8"  four shapes
+    //   "8"        one shape -- every batch padded to 8
+    const std::string bucket_spec = argc > 2 ? argv[2] : "1,2,4,8";
 
     cuda_db::OnnxExecutionEngine::Options options;
     options.model_path = model_path;
+    options.batch_buckets = parse_buckets(bucket_spec);
+    std::cout << "buckets: " << bucket_spec << "\n";
 
     std::cout << "loading " << model_path << " ...\n";
     cuda_db::OnnxExecutionEngine engine{std::move(options)};
