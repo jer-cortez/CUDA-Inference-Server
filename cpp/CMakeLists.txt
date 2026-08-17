@@ -75,6 +75,18 @@ if(CUDA_DB_BUILD_PYTHON)
     pybind11_add_module(cuda_db_native src/bindings/module.cpp)
     target_link_libraries(cuda_db_native PRIVATE cuda_db_core)
 
+    if(CUDA_DB_ENABLE_ONNX)
+        # libonnxruntime.so lives in an extracted tarball outside the loader's
+        # default search path, so without an RPATH the extension builds fine and
+        # then fails at import with "libonnxruntime.so.1: cannot open shared
+        # object file". Baking the directory in avoids making every caller
+        # remember to set LD_LIBRARY_PATH.
+        get_filename_component(CUDA_DB_ORT_LIBDIR "${ONNXRUNTIME_LIBRARY}" DIRECTORY)
+        set_target_properties(cuda_db_native PROPERTIES
+            BUILD_RPATH "${CUDA_DB_ORT_LIBDIR}"
+            INSTALL_RPATH "${CUDA_DB_ORT_LIBDIR}")
+    endif()
+
     # Lands next to python/cuda_db/_native/__init__.py in the installed wheel.
     install(TARGETS cuda_db_native LIBRARY DESTINATION cuda_db/_native)
 endif()
