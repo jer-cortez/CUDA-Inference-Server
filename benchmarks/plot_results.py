@@ -112,6 +112,13 @@ def plot_throughput(data: dict, theme: dict, out_path: Path) -> None:
             above = dynamic_y >= series["serial"][best]
             y_offset = 18 if above else -26
 
+            # ...unless that would push it into the title. The annotated point
+            # is usually the throughput peak, which sits near the top of the
+            # axes, so "above" is exactly where there is no room.
+            peak = max(max(series[mode].values()) for mode in series)
+            if y_offset > 0 and dynamic_y > 0.85 * peak:
+                y_offset = -26
+
             ax.annotate(
                 f"{factor:.1f}x at concurrency {best}",
                 xy=(best, dynamic_y),

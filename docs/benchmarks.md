@@ -88,12 +88,16 @@ discarded warmup requests.
 
 At the concurrency where the frontend is not yet the limit:
 
+Raw data for every figure below: [`final.json`](final.json). Charts:
+[throughput](images/throughput_vs_concurrency.png),
+[latency](images/latency_percentiles.png).
+
 | metric @ concurrency 16 | serial (batch 1) | dynamic batching | change |
 |---|---|---|---|
-| throughput | 415 req/s | **468 req/s** | **1.13x** |
-| p50 latency | 35.4 ms | **28.7 ms** | 19% lower |
-| p99 latency | **50.2 ms** | 58.3 ms | 16% higher |
-| mean batch size | 1.0 | 6.8 | — |
+| throughput | 416 req/s | **478 req/s** | **1.15x** |
+| p50 latency | 35.3 ms | **28.0 ms** | 21% lower |
+| p99 latency | **51.0 ms** | 54.9 ms | 8% higher |
+| mean batch size | 1.0 | 7.0 | — |
 
 This is the batching tradeoff in its expected form: more throughput and a lower
 median, paid for in the tail. Median improves because higher throughput drains
@@ -103,14 +107,15 @@ fixed size (see below) so a nearly-empty batch still costs a full one.
 
 ### Where batching does not win, and why
 
-| concurrency | serial | dynamic | speedup |
-|---|---|---|---|
-| 1 | 155 | 49 | 0.32x |
-| 4 | 425 | 145 | 0.34x |
-| 8 | 420 | 246 | 0.59x |
-| **16** | **415** | **468** | **1.13x** |
-| 32 | 402 | 263 | 0.65x |
-| 64 | 375 | 142 | 0.38x |
+| concurrency | serial | dynamic | speedup | mean batch |
+|---|---|---|---|---|
+| 1 | 144 | 49 | 0.34x | 1.0 |
+| 2 | 370 | 86 | 0.23x | 2.0 |
+| 4 | 426 | 145 | 0.34x | 4.0 |
+| 8 | 421 | 246 | 0.58x | 4.2 |
+| **16** | **416** | **478** | **1.15x** | **7.0** |
+| 32 | 401 | 246 | 0.61x | 4.2 |
+| 64 | 173 | 144 | 0.83x | 2.5 |
 
 **Below concurrency 16** the loss is structural, not a bug. The ONNX engine pads
 every batch to a single fixed shape (see below), so a batch of 1 does 8 rows of
