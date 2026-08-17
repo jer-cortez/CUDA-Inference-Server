@@ -14,6 +14,15 @@ target_include_directories(cuda_db_core PUBLIC
 
 target_compile_features(cuda_db_core PUBLIC cxx_std_17)
 
+# Required because this static library gets linked into cuda_db_native, a
+# shared module. On Linux/GCC a static library is built non-PIC by default, and
+# the link then fails with "relocation R_X86_64_PC32 ... can not be used when
+# making a shared object". macOS does not catch this -- Darwin compiles
+# position-independent by default -- so it only appears on the GPU box.
+# Set unconditionally rather than only under CUDA_DB_BUILD_PYTHON: the cost on
+# x86-64 is negligible and it keeps the plain-CMake and pip builds consistent.
+set_target_properties(cuda_db_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 find_package(Threads REQUIRED)
 target_link_libraries(cuda_db_core PUBLIC Threads::Threads)
 
