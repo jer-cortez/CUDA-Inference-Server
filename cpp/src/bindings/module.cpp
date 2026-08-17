@@ -127,6 +127,13 @@ private:
 #ifdef CUDA_DB_ENABLE_ONNX
         cuda_db::OnnxExecutionEngine::Options options;
         options.model_path = config.model_path;
+        // One shape, equal to the largest batch the scheduler can produce, so
+        // every batch pads up to it and ORT never re-plans. Derived from the
+        // scheduler config rather than left at a default: a bucket smaller than
+        // max_batch_size would let oversized batches through unpadded, and a
+        // larger one would waste compute on every call. See the measurements in
+        // onnx_execution_engine.hpp for why a single shape is required.
+        options.batch_buckets = {config.max_batch_size};
         return std::make_shared<cuda_db::OnnxExecutionEngine>(std::move(options));
 #else
         throw std::runtime_error(

@@ -39,19 +39,29 @@ public:
         // Batch sizes the session is allowed to see. A batch is padded up to
         // the next value here and the extra output rows are discarded.
         //
-        // This is not a micro-optimization -- it is the difference between the
-        // batcher working and not. An ORT dynamic-shape session re-plans per
-        // distinct input shape, and a scheduler naturally emits a different
-        // size on nearly every batch. Measured on an RTX A4000 with ResNet-50:
-        // 1.44 ms/request at a fixed batch of 4, versus 15.14 ms/request when
-        // the batch size varied over 1-8 -- a 10x regression that made dynamic
-        // batching roughly 5x SLOWER end to end than serving one request at a
-        // time. Padding trades a little wasted compute on the padded rows for
-        // a handful of shapes that stay warm.
+        // Default is a SINGLE size, and that is deliberate. An ORT
+        // dynamic-shape session retains a plan only for the most recent shape,
+        // so any switching pays a full re-plan. Measured on an RTX A4000 with
+        // ResNet-50, feeding random batch sizes 1-8:
         //
-        // Must be ascending. A batch larger than the last entry is run at its
-        // own size, paying the re-plan cost.
-        std::vector<std::size_t> batch_buckets{1, 2, 4, 8};
+        //   shapes in use   median call   throughput
+        //   4 (1,2,4,8)        76.1 ms        75 req/s
+        //   2 (4,8)            77.3 ms        91 req/s
+        //   1 (8)              12.2 ms       372 req/s
+        //
+        // Two shapes cost as much as four, so bucketing to a small set does not
+        // help -- only collapsing to one does. Set this to the scheduler's
+        // max_batch_size; the binding layer does that automatically.
+        //
+        // The cost is real: a batch of 1 padded to 8 does 8 rows of work
+        // (12.1 ms instead of 2.3 ms). Throughput beats one-at-a-time serving
+        // once batches average above ~4.7 of 8, so this configuration is a bet
+        // that load is high enough to fill batches -- which is precisely the
+        // regime dynamic batching exists for.
+        //
+        // Must be ascending. A batch larger than the last entry runs at its own
+        // size and pays the re-plan cost.
+        std::vector<std::size_t> batch_buckets{8};
 
         // Run one throwaway inference per bucket at construction. Without it
         // the first real request at each shape pays the planning cost, which

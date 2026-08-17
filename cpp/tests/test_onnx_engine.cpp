@@ -57,6 +57,17 @@ std::unique_ptr<OnnxExecutionEngine> make_engine() {
     return std::make_unique<OnnxExecutionEngine>(std::move(options));
 }
 
+std::unique_ptr<OnnxExecutionEngine> make_engine_with_buckets(
+    std::vector<std::size_t> buckets) {
+    OnnxExecutionEngine::Options options;
+    options.model_path = model_path();
+    options.batch_buckets = std::move(buckets);
+    // Warming every bucket would run a full inference per entry; these tests
+    // only care about the padding arithmetic and row mapping.
+    options.warm_buckets = false;
+    return std::make_unique<OnnxExecutionEngine>(std::move(options));
+}
+
 // Deterministic pseudo-random input. A fixed formula rather than a real image
 // because these tests check shape/consistency invariants, not classification
 // accuracy -- that is the integration test's job.
@@ -194,10 +205,13 @@ TEST(OnnxEngineTest, BatchedRowMatchesSameInputRunAlone) {
     }
 }
 
+// Explicit multi-bucket config so this exercises the rounding arithmetic
+// itself, independent of the shipped default (a single bucket).
 TEST(OnnxEngineTest, BucketForRoundsUpToConfiguredSizes) {
     SKIP_WITHOUT_MODEL();
 
-    const std::unique_ptr<OnnxExecutionEngine> engine = make_engine();  // buckets 1,2,4,8
+    const std::unique_ptr<OnnxExecutionEngine> engine =
+        make_engine_with_buckets({1, 2, 4, 8});
 
     EXPECT_EQ(engine->bucket_for(1), 1u);
     EXPECT_EQ(engine->bucket_for(2), 2u);
@@ -208,6 +222,18 @@ TEST(OnnxEngineTest, BucketForRoundsUpToConfiguredSizes) {
     EXPECT_EQ(engine->bucket_for(12), 12u);
 }
 
+// The shipped default collapses every batch onto one shape, which is what
+// keeps ORT from re-planning. Pinned here because silently regaining a second
+// bucket would cost ~6x throughput without failing any other test.
+TEST(OnnxEngineTest, DefaultConfigurationUsesASingleShape) {
+    SKIP_WITHOUT_MODEL();
+
+    const std::unique_ptr<OnnxExecutionEngine> engine = make_engine();
+
+    EXPECT_EQ(engine->bucket_for(1), engine->bucket_for(8))
+        << "default must map every in-range batch to one shape";
+}
+
 // A padded batch must return only the caller's rows. If padding leaked, the
 // output would be longer than requested and the scheduler would map logits to
 // the wrong requests -- silently, since the row count would still look
@@ -216,7 +242,7 @@ TEST(OnnxEngineTest, PaddedBatchReturnsOnlyRequestedRows) {
     SKIP_WITHOUT_MODEL();
 
     const std::unique_ptr<OnnxExecutionEngine> engine = make_engine();
-    ASSERT_EQ(engine->bucket_for(3), 4u) << "test assumes 3 pads up to 4";
+    ASSERT_GT(engine->bucket_for(3), 3u) << "test needs a batch of 3 to be padded";
 
     const std::vector<float> input = make_input(3, 0.25F);
     const std::vector<float> output =
