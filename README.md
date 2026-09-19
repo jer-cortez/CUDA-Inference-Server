@@ -114,17 +114,29 @@ python models/export_resnet.py            # writes models/resnet50.onnx
 ./scripts/build.sh gpu-python             # editable install with CUDA + ONNX
 
 CUDA_DB_MODEL_PATH=models/resnet50.onnx \
+  CUDA_DB_REQUIRE_GPU=true \
   python -m uvicorn cuda_db.server.app:app --port 8000
 ```
 
-`GET /healthz` reports which engine is live plus batching counters — worth
-checking, since the stub returns plausibly-shaped output and is otherwise
-indistinguishable from the real model.
+`GET /healthz` reports which engine is live plus batching counters. `GET
+/readyz` returns 200 only after an inference has passed the startup probe;
+it returns 503 while draining or after an engine failure. Set
+`CUDA_DB_REQUIRE_GPU=true` in production so a missing model or CUDA-backed ONNX
+runtime fails startup rather than serving with the local-development stub.
 
-Reproduce the benchmark:
+Prediction requests are admitted before their bodies are read. The default cap
+is 16 requests across upload, JSON parsing, executor queueing, and inference;
+excess requests receive `503` with `Retry-After: 1`. Bodies over 4 MiB receive
+`413`. The 30-second end-to-end deadline returns `408` if it expires during
+upload and `504` after upload. Tune these with the environment variables in
+[the architecture guide](docs/architecture.md#configuration).
+
+Reproduce the benchmark (the admission cap is explicitly raised to cover the
+largest tested concurrency):
 
 ```bash
-CUDA_DB_MODEL_PATH=models/resnet50.onnx python benchmarks/load_test.py \
+CUDA_DB_MODEL_PATH=models/resnet50.onnx CUDA_DB_MAX_INFLIGHT_REQUESTS=64 \
+  python benchmarks/load_test.py \
     --mode both --concurrency 1,2,4,8,16,32,64 --num-requests 300 --warmup 50
 ```
 

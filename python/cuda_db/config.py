@@ -33,6 +33,20 @@ def _env_str(name: str, default: str) -> str:
     return raw
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of true/false, 1/0, yes/no, or on/off, got {raw!r}"
+    )
+
+
 @dataclass(frozen=True)
 class RuntimeSettings:
     max_batch_size: int = 8
@@ -47,6 +61,34 @@ class RuntimeSettings:
     # what keeps the server runnable (and the integration tests meaningful) on
     # a machine with no GPU or no exported model.
     model_path: str = ""
+    # Covers body upload, validation, executor queueing and native inference.
+    request_timeout_ms: int = 30_000
+    # Admission happens before the body is read, so this also bounds how many
+    # large JSON bodies the process retains at once.
+    max_inflight_requests: int = 16
+    max_request_bytes: int = 4 * 1024 * 1024
+    # Production guard: refuse inference unless a CUDA-backed ONNX runtime was
+    # constructed and passed the startup probe. Local development keeps using
+    # the stub by default.
+    require_gpu: bool = False
+
+    def __post_init__(self) -> None:
+        positive = {
+            "max_batch_size": self.max_batch_size,
+            "input_elems": self.input_elems,
+            "output_elems": self.output_elems,
+            "executor_workers": self.executor_workers,
+            "request_timeout_ms": self.request_timeout_ms,
+            "max_inflight_requests": self.max_inflight_requests,
+            "max_request_bytes": self.max_request_bytes,
+        }
+        for name, value in positive.items():
+            if value < 1:
+                raise ValueError(f"{name} must be >= 1, got {value}")
+        if self.max_wait_ms < 0:
+            raise ValueError(f"max_wait_ms must be >= 0, got {self.max_wait_ms}")
+        if self.require_gpu and not self.model_path:
+            raise ValueError("require_gpu=true requires a non-empty model_path")
 
     @classmethod
     def from_env(cls) -> "RuntimeSettings":
@@ -57,4 +99,8 @@ class RuntimeSettings:
             output_elems=_env_int("CUDA_DB_OUTPUT_ELEMS", DEFAULT_OUTPUT_ELEMS),
             executor_workers=_env_int("CUDA_DB_EXECUTOR_WORKERS", 8),
             model_path=_env_str("CUDA_DB_MODEL_PATH", ""),
+            request_timeout_ms=_env_int("CUDA_DB_REQUEST_TIMEOUT_MS", 30_000),
+            max_inflight_requests=_env_int("CUDA_DB_MAX_INFLIGHT_REQUESTS", 16),
+            max_request_bytes=_env_int("CUDA_DB_MAX_REQUEST_BYTES", 4 * 1024 * 1024),
+            require_gpu=_env_bool("CUDA_DB_REQUIRE_GPU", False),
         )

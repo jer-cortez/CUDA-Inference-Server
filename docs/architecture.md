@@ -5,21 +5,30 @@ is. Measurements behind the performance claims are in [benchmarks.md](benchmarks
 
 ## Request lifecycle
 
-1. **FastAPI** receives `POST /predict` (JSON) or `POST /predict/raw` (binary
-   float32) and validates the tensor length.
-2. The handler hands the array to a **thread-pool executor** via
-   `run_in_executor`. This is the load-bearing step: the native call blocks, and
+1. Pure **ASGI admission middleware** reserves one of a fixed number of
+   request slots before reading the body. It enforces the streamed byte limit
+   and one deadline across upload, parsing, executor queueing, and inference.
+2. **FastAPI** parses `POST /predict` (JSON) or `POST /predict/raw` (binary
+   float32) and validates tensor length and finite values.
+3. The handler submits the array to a dedicated **thread-pool executor** and
+   awaits its wrapped future. This is the load-bearing step: the native call blocks, and
    running it on the event loop would serialize every request and prevent any
    batch from ever forming.
-3. The **pybind11 binding** copies the tensor into an `InferenceRequest`,
+4. The **pybind11 binding** copies the tensor into an `InferenceRequest`,
    releases the GIL, submits to the scheduler, and blocks on a `std::future`.
    Releasing the GIL is what lets other executor threads keep submitting while
    this one waits — without it the "concurrency" would be nominal.
-4. The **request queue** accepts the request and wakes the worker.
-5. The **scheduler worker** drains a batch, concatenates the inputs, calls the
+5. The **request queue** accepts the request and wakes the worker.
+6. The **scheduler worker** drains a batch, concatenates the inputs, calls the
    engine, then resolves each request's promise with its own output row.
-6. The future completes, the binding reacquires the GIL, and the response
+7. The future completes, the binding reacquires the GIL, and the response
    returns up the same path.
+
+The admission permit belongs jointly to the HTTP task and its native future.
+If the client disconnects or the deadline expires after submission, the HTTP
+task ends but its slot stays occupied until native inference actually returns.
+Async cancellation cannot stop a C++/CUDA call, so releasing sooner would let
+replacement requests accumulate behind work that is still using the GPU.
 
 ## Threading model
 
@@ -27,8 +36,8 @@ Three kinds of thread, deliberately:
 
 - **The event loop** (one) never blocks. It only parses requests and dispatches.
 - **Executor threads** (default 8) block inside `predict()` with the GIL
-  released. Their count bounds how many requests can be in flight at the
-  scheduler at once, so it must be at least the target concurrency.
+  released. Admission provides the end-to-end bound; requests above the worker
+  count can wait in the bounded executor queue.
 - **The scheduler worker** (one) owns all batching and inference. Single by
   design: one GPU, one ONNX Runtime session, and a second worker would contend
   for both while making batch composition nondeterministic.
@@ -135,8 +144,8 @@ The only file in the project that includes pybind11, which is what keeps
 
 `predict()` is deliberately blocking rather than returning an awaitable. C++
 futures do not integrate with the asyncio event loop, and faking an async API
-would hide where the blocking actually happens. Offloading is Python's job, in
-one visible `run_in_executor` call.
+would hide where the blocking actually happens. Python submits it to the
+dedicated executor and adapts its future into an asyncio future explicitly.
 
 ## Configuration
 
@@ -145,11 +154,41 @@ one visible `run_in_executor` call.
 | `CUDA_DB_MODEL_PATH` | `""` | empty selects the stub engine |
 | `CUDA_DB_MAX_BATCH_SIZE` | 8 | batch cap, and the padded shape the engine uses |
 | `CUDA_DB_MAX_WAIT_MS` | 5 | batching window, timed from first arrival |
-| `CUDA_DB_EXECUTOR_WORKERS` | 8 | must be ≥ target concurrency or requests queue before reaching the scheduler |
+| `CUDA_DB_EXECUTOR_WORKERS` | 8 | native calls allowed to reach/block in the scheduler concurrently; excess admitted work waits in the bounded executor queue |
+| `CUDA_DB_MAX_INFLIGHT_REQUESTS` | 16 | immediate admission cap, acquired before body upload |
+| `CUDA_DB_MAX_REQUEST_BYTES` | 4194304 | streamed request-body cap, with or without `Content-Length` |
+| `CUDA_DB_REQUEST_TIMEOUT_MS` | 30000 | deadline across upload, validation, queueing, and inference |
+| `CUDA_DB_REQUIRE_GPU` | false | require a non-empty model path and CUDA-backed ONNX engine |
 
 `max_wait_ms` is the main tuning knob in principle, but measurement showed
 widening it past the default does not help here: it fills batches from 7.0 to
 7.9 of 8 while adding wait time, and net throughput falls.
+
+The load-test admission limit must be at least the concurrency under test unless
+the purpose is to measure overload rejection. Settings are validated at startup;
+sizes, worker counts, capacities, and deadlines must be positive.
+JSON parsing is synchronous Python work, so it cannot be interrupted in the
+middle of a parse; the handler checks the deadline immediately afterward and
+before native submission. Once submitted, native GPU work also cannot be
+preempted safely, so a timed-out request retains its admission slot until that
+work returns.
+
+## Startup and shutdown
+
+Startup runs one zero-input prediction through the executor, scheduler, and
+engine and verifies the output shape and finiteness before `/readyz` can return
+200. `CUDA_DB_REQUIRE_GPU=true` also requires the ONNX engine; its CUDA provider
+configuration plus the probe proves the serving path runs, but does not prove
+that every model operator was placed on the GPU. Confirm placement with GPU
+utilization or ONNX Runtime profiling during the AWS benchmark.
+
+Shutdown marks the process unready and closes admission first. It waits for all
+HTTP requests and detached native futures before stopping the scheduler, so an
+executor task cannot submit after the scheduler has stopped. A native driver or
+kernel hang cannot be killed safely inside the process; production should give
+the process a finite termination grace period and let the supervisor replace it.
+This lifecycle assumes one application process per GPU. Multiple Uvicorn workers
+would each create a separate model, scheduler, admission cap, and CUDA context.
 
 ## Known limits
 
@@ -163,3 +202,6 @@ widening it past the default does not help here: it fills batches from 7.0 to
   could happen on-device instead.
 - **Low concurrency is worse than no batching**, structurally. Padding to a fixed
   shape means a batch of 1 does `max_batch_size` rows of work.
+- **Admission is process-local.** The documented limits and readiness lifecycle
+  assume the recommended single Uvicorn worker. A future multi-process deployment
+  needs an external/global admission layer.

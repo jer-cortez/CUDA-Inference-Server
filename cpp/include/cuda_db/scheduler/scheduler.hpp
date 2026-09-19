@@ -68,6 +68,7 @@ struct Scheduler {
     void stop();
     std::future<InferenceResult> submit(InferenceRequest&& request);
     SchedulerStats stats() const;
+    void reset_stats();
 
     std::shared_ptr<IExecutionEngine> engine_;
     SchedulerConfig config_;

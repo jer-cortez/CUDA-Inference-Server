@@ -13,7 +13,7 @@
 namespace cuda_db {
 
 struct RequestQueue {
-    void push(InferenceRequest&& request);
+    bool push(InferenceRequest&& request);
     std::vector<InferenceRequest> wait_and_drain(std::size_t max_batch_size, std::chrono::milliseconds timeout);
     void shutdown();
     

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -140,6 +141,46 @@ TEST(SchedulerTest, PendingRequestsCompleteAcrossStop) {
     InferenceResult result = future.get();
     EXPECT_EQ(result.request_id, 9u);
     EXPECT_FLOAT_EQ(result.logits[0], 42.0f);
+}
+
+TEST(SchedulerTest, SubmitRacingStopEitherCompletesOrThrows) {
+    auto engine = std::make_shared<StubExecutionEngine>();
+    SchedulerConfig config;
+    config.max_batch_size = 8;
+    config.max_wait = 1ms;
+    config.input_elems = 1;
+    config.output_elems = 1;
+
+    Scheduler scheduler(engine, config);
+    scheduler.start();
+
+    std::mutex futures_mutex;
+    std::vector<std::future<InferenceResult>> accepted;
+    std::vector<std::thread> producers;
+    for (std::uint64_t producer = 0; producer < 4; ++producer) {
+        producers.emplace_back([&, producer] {
+            for (std::uint64_t i = 0; i < 100; ++i) {
+                try {
+                    auto future = scheduler.submit(
+                        make_request(producer * 100 + i, static_cast<float>(i)));
+                    std::lock_guard<std::mutex> lock(futures_mutex);
+                    accepted.push_back(std::move(future));
+                } catch (const InferenceError&) {
+                    // A stop that won the queue lock is the documented outcome.
+                }
+            }
+        });
+    }
+
+    scheduler.stop();
+    for (std::thread& producer : producers) {
+        producer.join();
+    }
+
+    for (auto& future : accepted) {
+        ASSERT_EQ(future.wait_for(0ms), std::future_status::ready);
+        EXPECT_NO_THROW(future.get());
+    }
 }
 
 // The batching counters are what /healthz and the benchmark harness read to

@@ -10,15 +10,19 @@ namespace cuda_db {
  * internal deque under lock, then notifies one waiter. Safe to call from
  * multiple producer threads concurrently.
  *
- * @param request The request to enqueue. Moved from; the caller's object is
- * left in a valid but unspecified state after this call.
+ * @param request The request to enqueue. Moved from only when accepted.
+ * @return true when enqueued; false when shutdown has already won the lock.
  */
-void RequestQueue::push(InferenceRequest&& request) {
+bool RequestQueue::push(InferenceRequest&& request) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        if (stop_requested_) {
+            return false;
+        }
         queue_.push_back(std::move(request));
     }
     cv_.notify_one();
+    return true;
 }
 
 /**

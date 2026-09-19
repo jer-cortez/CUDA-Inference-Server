@@ -134,6 +134,14 @@ TEST(RequestQueueTest, ShutdownUnblocksWaiter) {
     consumer.join();
 }
 
+TEST(RequestQueueTest, PushAfterShutdownIsRejected) {
+    RequestQueue queue;
+    queue.shutdown();
+
+    EXPECT_FALSE(queue.push(make_request(1)));
+    EXPECT_EQ(queue.size(), 0u);
+}
+
 // size() should reflect items currently queued, and should not consume
 // them (a subsequent wait_and_drain() should still see the same items).
 TEST(RequestQueueTest, SizeReflectsQueuedItemsWithoutDraining) {

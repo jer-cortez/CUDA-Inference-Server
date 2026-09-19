@@ -115,6 +115,8 @@ public:
         return out;
     }
 
+    void reset_stats() { scheduler_.reset_stats(); }
+
 private:
     // Chooses the backend from the config. An empty model_path selects the
     // stub; a non-empty one requires an ONNX-enabled build, and says so
@@ -196,8 +198,12 @@ PYBIND11_MODULE(cuda_db_native, m) {
              "Run one request through the batching scheduler and return "
              "(request_id, output). Blocks; call it from a thread-pool "
              "executor, not the event loop.")
-        .def("shutdown", &InferenceRuntime::shutdown)
+        .def("shutdown", [](InferenceRuntime& self) {
+            py::gil_scoped_release release;
+            self.shutdown();
+        })
         .def("stats", &InferenceRuntime::stats)
+        .def("reset_stats", &InferenceRuntime::reset_stats)
         .def("__enter__", [](InferenceRuntime& self) -> InferenceRuntime& { return self; })
         .def("__exit__", [](InferenceRuntime& self, const py::object&, const py::object&,
                             const py::object&) { self.shutdown(); });

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from concurrent.futures import Future
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, Request
@@ -27,6 +28,18 @@ RAW_DTYPE = "<f4"
 RAW_ITEMSIZE = 4
 
 
+def _finish_native_future(future: asyncio.Future, request: Request) -> None:
+    """Observe detached failures and make an unhealthy engine unready."""
+    try:
+        exception = future.exception()
+    except (asyncio.CancelledError, Exception):
+        return
+    if isinstance(exception, request.app.state.inference_error_type):
+        request.app.state.ready = False
+        request.app.state.readiness_detail = f"inference engine failed: {exception}"
+        request.app.state.admission.close()
+
+
 async def _predict(array: np.ndarray, request: Request) -> PredictionResponse:
     """Submit one already-validated tensor and wait for its result.
 
@@ -34,11 +47,21 @@ async def _predict(array: np.ndarray, request: Request) -> PredictionResponse:
     must not run on the event loop -- otherwise concurrent requests would
     serialize and never form a batch, which is the whole point of the system.
     """
-    loop = asyncio.get_running_loop()
+    if not np.isfinite(array).all():
+        raise HTTPException(status_code=400, detail="input values must all be finite")
+
+    deadline = request.scope["cuda_db.deadline"]
+    if time.monotonic() >= deadline:
+        raise HTTPException(status_code=504, detail="inference deadline exceeded")
+
     started = time.perf_counter()
-    request_id, output = await loop.run_in_executor(
-        request.app.state.executor, request.app.state.runtime.predict, array
+    work: Future = request.app.state.executor.submit(
+        request.app.state.runtime.predict, array
     )
+    request.scope["cuda_db.admission_lease"].attach_work(work)
+    wrapped = asyncio.wrap_future(work)
+    wrapped.add_done_callback(lambda future: _finish_native_future(future, request))
+    request_id, output = await asyncio.shield(wrapped)
     latency_ms = (time.perf_counter() - started) * 1000.0
 
     return PredictionResponse(
@@ -88,4 +111,14 @@ async def predict_raw(request: Request) -> PredictionResponse:
 
 @router.get("/healthz")
 async def healthz(request: Request) -> dict:
-    return {"status": "ok", **request.app.state.runtime.stats()}
+    runtime = getattr(request.app.state, "runtime", None)
+    if runtime is None:
+        raise HTTPException(status_code=503, detail=request.app.state.readiness_detail)
+    return {"status": "ok", **runtime.stats()}
+
+
+@router.get("/readyz")
+async def readyz(request: Request) -> dict:
+    if not request.app.state.ready:
+        raise HTTPException(status_code=503, detail=request.app.state.readiness_detail)
+    return {"status": "ready"}

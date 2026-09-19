@@ -77,7 +77,9 @@ void Scheduler::stop() {
  */
 std::future<InferenceResult> Scheduler::submit(InferenceRequest&& request) {
     auto future = request.result_promise.get_future();
-    queue_.push(std::move(request));
+    if (!queue_.push(std::move(request))) {
+        throw InferenceError("scheduler is stopped and cannot accept requests");
+    }
     return future;
 }
 
@@ -99,6 +101,15 @@ SchedulerStats Scheduler::stats() const {
     snapshot.max_queue_wait_us = max_queue_wait_us_.load(std::memory_order_relaxed);
     snapshot.total_exec_us = total_exec_us_.load(std::memory_order_relaxed);
     return snapshot;
+}
+
+void Scheduler::reset_stats() {
+    total_batches_.store(0, std::memory_order_relaxed);
+    total_requests_.store(0, std::memory_order_relaxed);
+    max_batch_size_seen_.store(0, std::memory_order_relaxed);
+    total_queue_wait_us_.store(0, std::memory_order_relaxed);
+    max_queue_wait_us_.store(0, std::memory_order_relaxed);
+    total_exec_us_.store(0, std::memory_order_relaxed);
 }
 
 /**
