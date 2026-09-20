@@ -1,0 +1,43 @@
+services:
+  inference:
+    image: cuda-db:gpu-local
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      CUDA_DB_REQUIRE_GPU: "true"
+      CUDA_DB_MODEL_PATH: /models/resnet50.onnx
+      CUDA_DB_MODEL_MANIFEST: /models/resnet50.manifest.json
+      CUDA_DB_MAX_BATCH_SIZE: "${CUDA_DB_MAX_BATCH_SIZE:-8}"
+      CUDA_DB_MAX_WAIT_MS: "${CUDA_DB_MAX_WAIT_MS:-5}"
+      CUDA_DB_MAX_INFLIGHT_REQUESTS: "${CUDA_DB_MAX_INFLIGHT_REQUESTS:-16}"
+      CUDA_DB_MAX_REQUEST_BYTES: "${CUDA_DB_MAX_REQUEST_BYTES:-4194304}"
+      CUDA_DB_REQUEST_TIMEOUT_MS: "${CUDA_DB_REQUEST_TIMEOUT_MS:-30000}"
+    volumes:
+      - type: bind
+        source: ${CUDA_DB_MODELS_DIR:-../models}
+        target: /models
+        read_only: true
+        bind:
+          create_host_path: false
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

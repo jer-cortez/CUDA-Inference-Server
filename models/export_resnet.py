@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 from pathlib import Path
 
 import numpy as np
@@ -39,7 +40,7 @@ NUM_CLASSES = 1000
 OPSET_VERSION = 17
 
 
-def export(onnx_path: Path, labels_path: Path) -> None:
+def export(onnx_path: Path, labels_path: Path, model_version: str = "resnet50-imagenet1k-v2") -> None:
     weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2
     model = torchvision.models.resnet50(weights=weights)
     model.eval()
@@ -61,11 +62,14 @@ def export(onnx_path: Path, labels_path: Path) -> None:
         # scheduler forms that isn't exactly that size fails to bind --
         # which would defeat dynamic batching entirely.
         dynamic_axes={INPUT_NAME: {0: "batch"}, OUTPUT_NAME: {0: "batch"}},
+        # Keep the export path stable across torch releases that change the
+        # default exporter. This graph is small enough for a single ONNX file.
+        dynamo=False,
     )
 
     _assert_dynamic_batch(onnx_path)
     _write_labels(weights, labels_path)
-    _print_reference(model, onnx_path)
+    _write_reference_and_manifest(model, onnx_path, model_version)
 
 
 def _assert_dynamic_batch(onnx_path: Path) -> None:
@@ -97,14 +101,14 @@ def _write_labels(weights, labels_path: Path) -> None:
     print(f"wrote {labels_path.name} ({len(categories)} classes)")
 
 
-def _print_reference(model: torch.nn.Module, onnx_path: Path) -> None:
-    """Print a deterministic reference prediction for the tests to assert on.
+def _write_reference_and_manifest(model: torch.nn.Module, onnx_path: Path, model_version: str) -> None:
+    """Save deterministic reference tensors and an identity for the model.
 
     Uses a fixed-seed synthetic input rather than a real image so the value is
     reproducible anywhere without shipping a JPEG into the repo.
     """
     generator = torch.Generator().manual_seed(0)
-    reference_input = torch.randn(1, CHANNELS, HEIGHT, WIDTH, generator=generator)
+    reference_input = torch.randn(8, CHANNELS, HEIGHT, WIDTH, generator=generator)
 
     with torch.no_grad():
         logits = model(reference_input).numpy()
@@ -112,6 +116,24 @@ def _print_reference(model: torch.nn.Module, onnx_path: Path) -> None:
     top1 = int(np.argmax(logits[0]))
     digest = hashlib.sha256(reference_input.numpy().tobytes()).hexdigest()[:16]
 
+    reference_path = onnx_path.with_suffix(".reference.npz")
+    np.savez(reference_path, input=reference_input.numpy(), output=logits)
+    manifest = {
+        "schema_version": 1,
+        "model_version": model_version,
+        "file": onnx_path.name,
+        "sha256": hashlib.sha256(onnx_path.read_bytes()).hexdigest(),
+        "input": {"name": INPUT_NAME, "dtype": "float32", "shape": ["batch", CHANNELS, HEIGHT, WIDTH]},
+        "output": {"name": OUTPUT_NAME, "dtype": "float32", "shape": ["batch", NUM_CLASSES]},
+        "opset": OPSET_VERSION,
+        "weights": "torchvision.models.ResNet50_Weights.IMAGENET1K_V2",
+        "export_versions": {"torch": torch.__version__, "torchvision": torchvision.__version__, "onnx": onnx.__version__},
+        "preprocessing": {"source": "torchvision IMAGENET1K_V2 recommended transforms; API accepts already prepared tensors", "layout": "NCHW", "resize_shorter_edge": 232, "center_crop": 224, "scale": "RGB / 255", "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]},
+        "reference": {"file": reference_path.name, "sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(), "max_abs_logit_error": 0.01},
+    }
+    manifest_path = onnx_path.with_suffix(".manifest.json")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"wrote {manifest_path.name} and {reference_path.name}")
     print()
     print("reference (seed=0 synthetic input):")
     print(f"  input sha256[:16] : {digest}")
@@ -126,10 +148,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_ONNX_PATH)
     parser.add_argument("--labels", type=Path, default=DEFAULT_LABELS_PATH)
+    parser.add_argument("--model-version", default="resnet50-imagenet1k-v2")
     args = parser.parse_args()
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    export(args.output, args.labels)
+    args.labels.parent.mkdir(parents=True, exist_ok=True)
+    export(args.output, args.labels, args.model_version)
 
 
 if __name__ == "__main__":

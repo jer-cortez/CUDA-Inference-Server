@@ -34,6 +34,9 @@ onnxruntime-gpu.tgz
 
 # Models (large binaries)
 models/*.onnx
+models/*.reference.npz
+models/*.manifest.json
+models/imagenet_classes.txt
 
 # Editor/OS
 .DS_Store

@@ -1,5 +1,7 @@
 # CUDA Inference Server
 
+GPU container build, model verification, and host setup: [container runbook](docker/README.md).
+
 A GPU inference server that batches concurrent requests on the fly. A C++
 scheduler collects incoming requests into a batch — closing it when either a
 size threshold or a time window is hit, whichever comes first — and runs the
