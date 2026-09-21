@@ -71,6 +71,13 @@ class RuntimeSettings:
     # constructed and passed the startup probe. Local development keeps using
     # the stub by default.
     require_gpu: bool = False
+    # Prediction endpoints can be protected with hashed bearer tokens.  The
+    # deployment switch also forces authentication and removes interactive API
+    # documentation; it intentionally does not imply require_gpu so production
+    # security can be exercised on CPU-only hosts.
+    require_auth: bool = False
+    api_keys_file: str = ""
+    deployment_mode: bool = False
 
     def __post_init__(self) -> None:
         positive = {
@@ -89,6 +96,15 @@ class RuntimeSettings:
             raise ValueError(f"max_wait_ms must be >= 0, got {self.max_wait_ms}")
         if self.require_gpu and not self.model_path:
             raise ValueError("require_gpu=true requires a non-empty model_path")
+        if (self.require_auth or self.deployment_mode) and not self.api_keys_file:
+            raise ValueError(
+                "authentication requires a non-empty api_keys_file"
+            )
+
+    @property
+    def auth_required(self) -> bool:
+        """Whether prediction routes must authenticate."""
+        return self.require_auth or self.deployment_mode
 
     @classmethod
     def from_env(cls) -> "RuntimeSettings":
@@ -103,4 +119,7 @@ class RuntimeSettings:
             max_inflight_requests=_env_int("CUDA_DB_MAX_INFLIGHT_REQUESTS", 16),
             max_request_bytes=_env_int("CUDA_DB_MAX_REQUEST_BYTES", 4 * 1024 * 1024),
             require_gpu=_env_bool("CUDA_DB_REQUIRE_GPU", False),
+            require_auth=_env_bool("CUDA_DB_REQUIRE_AUTH", False),
+            api_keys_file=_env_str("CUDA_DB_API_KEYS_FILE", ""),
+            deployment_mode=_env_bool("CUDA_DB_DEPLOYMENT_MODE", False),
         )

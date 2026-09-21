@@ -1,8 +1,10 @@
 # GPU container runbook
 
 This packages the existing API and native scheduler for one Linux AMD64 NVIDIA
-GPU. It does not provision AWS resources or expose authenticated HTTPS. The
-Compose service binds port 8000 to host loopback for local validation.
+GPU. The local Compose service binds port 8000 to host loopback for development
+validation. The separate [authenticated HTTPS runbook](SECURITY.md) describes
+the standalone, TCP/443-only pilot deployment; it does not provision AWS
+resources.
 
 ## Dependency contract
 
@@ -180,7 +182,7 @@ the actual needed cache path before granting further write access.
 
 GPU correctness, overload/stop checks, and full image execution must be recorded
 as pending until run on suitable hardware. AWS benchmarking, ECR publishing,
-authentication/TLS, and Terraform are later milestones.
+and Terraform remain outside this repository's deployment workflow.
 
 ## Local verification (2026-09-19)
 

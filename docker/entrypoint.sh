@@ -11,4 +11,5 @@ python /opt/cuda-db/verify_model.py
 # owns one model/scheduler. Native work can outlive HTTP timeout; Docker's
 # stop grace period is the final bound for a hung CUDA call.
 exec python -m uvicorn cuda_db.server.app:app --host 0.0.0.0 --port 8000 \
-    --workers 1 --timeout-graceful-shutdown 45 --no-proxy-headers
+    --workers 1 --timeout-graceful-shutdown 45 --no-proxy-headers \
+    --no-access-log --log-config /opt/cuda-db/uvicorn-logging.json

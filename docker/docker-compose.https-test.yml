@@ -1,0 +1,80 @@
+name: cuda-db-https-test
+
+services:
+  inference:
+    image: cuda-db:security-test
+    build:
+      context: ..
+      dockerfile: docker/security-test.Dockerfile
+    environment:
+      CUDA_DB_REQUIRE_GPU: "false"
+      CUDA_DB_REQUIRE_AUTH: "true"
+      CUDA_DB_API_KEYS_FILE: /run/secrets/api_keys.json
+      CUDA_DB_DEPLOYMENT_MODE: "true"
+      CUDA_DB_INPUT_ELEMS: "4"
+      CUDA_DB_OUTPUT_ELEMS: "6"
+      CUDA_DB_MAX_BATCH_SIZE: "2"
+      CUDA_DB_MAX_WAIT_MS: "1"
+      CUDA_DB_MAX_INFLIGHT_REQUESTS: "4"
+      CUDA_DB_MAX_REQUEST_BYTES: "4194304"
+      CUDA_DB_REQUEST_TIMEOUT_MS: "30000"
+    secrets:
+      - source: api_keys
+        target: api_keys.json
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 2m
+        max-file: "2"
+
+  caddy:
+    image: caddy:2.11.4-alpine@sha256:de23def33b17fb5d1290b0f6c2add1d70780e52341896c00a4c8a2a2fe9d355e
+    user: "1000:1000"
+    ports:
+      - "127.0.0.1:${CUDA_DB_TEST_HTTPS_PORT:-8443}:443/tcp"
+    volumes:
+      - type: bind
+        source: ./Caddyfile.local
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - caddy_test_data:/data
+      - caddy_test_config:/config
+    networks:
+      - edge
+      - backend
+    depends_on:
+      inference:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=32m,mode=1777
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 2m
+        max-file: "2"
+
+secrets:
+  api_keys:
+    file: "${CUDA_DB_TEST_API_KEYS_FILE:?Set CUDA_DB_TEST_API_KEYS_FILE to the test key-store path}"
+
+networks:
+  edge: {}
+  backend:
+    internal: true
+
+volumes:
+  caddy_test_data: {}
+  caddy_test_config: {}

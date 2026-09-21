@@ -1,0 +1,62 @@
+{
+	admin off
+	persist_config off
+	auto_https disable_redirects
+	local_certs
+	skip_install_trust
+
+	log default {
+		format json
+		exclude http.log.access http.log.error
+	}
+
+	servers :443 {
+		protocols h1 h2
+		max_header_size 16KiB
+		# Preserve auth-before-body rejection behavior for HTTP/1 clients.
+		enable_full_duplex
+		timeouts {
+			read_body 30s
+			read_header 10s
+			write 40s
+			idle 2m
+		}
+		0rtt off
+	}
+}
+
+localhost {
+	@inference {
+		method POST
+		path /predict /predict/raw
+	}
+
+	handle @inference {
+		request_body {
+			max_size 4MiB
+		}
+
+		reverse_proxy inference:8000 {
+			header_up -Forwarded
+			header_up -X-Forwarded-For
+			header_up -X-Forwarded-Host
+			header_up -X-Forwarded-Proto
+			header_up -X-Real-IP
+
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 35s
+			}
+		}
+	}
+
+	handle {
+		header Content-Type application/json
+		respond `{"detail":"not found"}` 404
+	}
+
+	handle_errors {
+		header Content-Type application/json
+		respond `{"detail":"request failed"}` {err.status_code}
+	}
+}

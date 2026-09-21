@@ -12,21 +12,29 @@ from concurrent.futures import Future
 from contextlib import suppress
 
 import asyncio
+import logging
 
 import numpy as np
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .._native import InferenceError, InferenceRuntime, RuntimeConfig
 from ..config import RuntimeSettings
 from .admission import AdmissionController, PredictionAdmissionMiddleware
 from .executor import make_executor
+from .observability import RequestLoggingMiddleware, log_message
 from .routes import router
+from .security import ApiKeyAuthenticator, AuthenticationMiddleware
+
+logger = logging.getLogger("cuda_db.server")
 
 
 def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
+    _configure_logging()
     settings = settings or RuntimeSettings.from_env()
+    authenticator = ApiKeyAuthenticator(settings.auth_required)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -35,8 +43,7 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
         app.state.readiness_detail = "starting"
         runtime = None
         startup_probe: Future | None = None
-        executor = make_executor(settings.executor_workers)
-        app.state.executor = executor
+        executor = None
 
         async def stop_runtime(detail: str) -> None:
             app.state.ready = False
@@ -50,9 +57,17 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
                     await asyncio.to_thread(startup_probe.result)
             if runtime is not None:
                 await asyncio.to_thread(runtime.shutdown)
-            await asyncio.to_thread(executor.shutdown, True)
+            if executor is not None:
+                await asyncio.to_thread(executor.shutdown, True)
+            authenticator.clear()
 
         try:
+            # Validate security configuration before allocating an executor or
+            # constructing native state. A bad or missing store therefore
+            # fails startup closed without briefly exposing inference.
+            authenticator.load(settings.api_keys_file)
+            executor = make_executor(settings.executor_workers)
+            app.state.executor = executor
             runtime = InferenceRuntime(
                 RuntimeConfig(
                     max_batch_size=settings.max_batch_size,
@@ -88,6 +103,10 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
         except BaseException as exc:
             app.state.ready = False
             app.state.readiness_detail = f"startup failed: {exc}"
+            logger.error(
+                log_message("startup_failed", failure_type=type(exc).__name__),
+                extra={"failure_type": type(exc).__name__},
+            )
             await stop_runtime(app.state.readiness_detail)
             raise
         try:
@@ -95,7 +114,13 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
         finally:
             await stop_runtime("draining")
 
-    app = FastAPI(title="cuda-db", lifespan=lifespan)
+    app = FastAPI(
+        title="cuda-db",
+        lifespan=lifespan,
+        docs_url=None if settings.deployment_mode else "/docs",
+        redoc_url=None if settings.deployment_mode else "/redoc",
+        openapi_url=None if settings.deployment_mode else "/openapi.json",
+    )
     admission = AdmissionController(settings.max_inflight_requests)
     app.state.admission = admission
     app.state.ready = False
@@ -107,6 +132,10 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
         max_request_bytes=settings.max_request_bytes,
         request_timeout_ms=settings.request_timeout_ms,
     )
+    app.add_middleware(AuthenticationMiddleware, authenticator=authenticator)
+    # Added last so Starlette makes it the outermost user middleware. It sees
+    # authentication and admission rejections as well as routed responses.
+    app.add_middleware(RequestLoggingMiddleware)
     app.include_router(router)
 
     @app.exception_handler(InferenceError)
@@ -114,11 +143,27 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
         request.app.state.ready = False
         request.app.state.readiness_detail = f"inference engine failed: {exc}"
         request.app.state.admission.close()
-        return JSONResponse(status_code=500, content={"detail": str(exc)})
+        logger.error(
+            log_message(
+                "inference_engine_failed",
+                failure_type=type(exc).__name__,
+                request_id=request.scope.get("cuda_db.request_id", "-"),
+            ),
+            extra={
+                "failure_type": type(exc).__name__,
+                "request_id": request.scope.get("cuda_db.request_id", "-"),
+            },
+        )
+        return JSONResponse(status_code=500, content={"detail": "inference failed"})
 
     @app.exception_handler(ValueError)
-    async def _value_error(_: Request, exc: ValueError) -> JSONResponse:
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
+    async def _value_error(_: Request, __: ValueError) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"detail": "invalid request"})
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(_: Request, __: RequestValidationError) -> JSONResponse:
+        # Pydantic's normal error body includes the rejected input value.
+        return JSONResponse(status_code=422, content={"detail": "invalid request"})
 
     return app
 
@@ -126,6 +171,24 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
 def _consume_future_exception(future: asyncio.Future) -> None:
     with suppress(asyncio.CancelledError, Exception):
         future.exception()
+
+
+def _configure_logging() -> None:
+    """Route application logs through Uvicorn when its config is active.
+
+    Uvicorn's default configuration installs handlers only on ``uvicorn`` and
+    not the root logger. Reusing those already-configured handlers keeps
+    request audit records visible without adding duplicate handlers in tests
+    or in embedding applications that configure their own root logger.
+    """
+    application_logger = logging.getLogger("cuda_db")
+    application_logger.setLevel(logging.INFO)
+    if application_logger.handlers:
+        return
+    uvicorn_logger = logging.getLogger("uvicorn")
+    if uvicorn_logger.handlers:
+        application_logger.handlers = list(uvicorn_logger.handlers)
+        application_logger.propagate = False
 
 
 app = create_app()

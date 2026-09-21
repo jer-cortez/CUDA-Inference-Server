@@ -12,6 +12,7 @@ endpoints share one execution path below so they cannot drift apart.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from concurrent.futures import Future
 
@@ -19,8 +20,10 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, Request
 
 from ..schemas.prediction import PredictionRequest, PredictionResponse
+from .observability import log_message
 
 router = APIRouter()
+logger = logging.getLogger("cuda_db.inference")
 
 # Little-endian float32. Explicit rather than "f4" so the wire format is fixed
 # by the protocol instead of by whatever the server's native byte order is.
@@ -38,6 +41,17 @@ def _finish_native_future(future: asyncio.Future, request: Request) -> None:
         request.app.state.ready = False
         request.app.state.readiness_detail = f"inference engine failed: {exception}"
         request.app.state.admission.close()
+        logger.error(
+            log_message(
+                "late_inference_engine_failure",
+                failure_type=type(exception).__name__,
+                request_id=request.scope.get("cuda_db.request_id", "-"),
+            ),
+            extra={
+                "failure_type": type(exception).__name__,
+                "request_id": request.scope.get("cuda_db.request_id", "-"),
+            },
+        )
 
 
 async def _predict(array: np.ndarray, request: Request) -> PredictionResponse:
@@ -113,12 +127,12 @@ async def predict_raw(request: Request) -> PredictionResponse:
 async def healthz(request: Request) -> dict:
     runtime = getattr(request.app.state, "runtime", None)
     if runtime is None:
-        raise HTTPException(status_code=503, detail=request.app.state.readiness_detail)
+        raise HTTPException(status_code=503, detail="server is not ready")
     return {"status": "ok", **runtime.stats()}
 
 
 @router.get("/readyz")
 async def readyz(request: Request) -> dict:
     if not request.app.state.ready:
-        raise HTTPException(status_code=503, detail=request.app.state.readiness_detail)
+        raise HTTPException(status_code=503, detail="server is not ready")
     return {"status": "ready"}

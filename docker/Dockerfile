@@ -57,7 +57,7 @@ RUN --mount=type=bind,from=builder,source=/wheels,target=/wheels \
     python -m pip install --no-cache-dir --no-index --find-links=/wheels cuda-db==0.1.0 \
     && python -m pip check \
     && python -c 'import cuda_db._native'
-COPY docker/entrypoint.sh docker/verify_model.py docker/healthcheck.py docker/check_linkage.py docker/requirements-runtime.txt /opt/cuda-db/
+COPY docker/entrypoint.sh docker/verify_model.py docker/healthcheck.py docker/check_linkage.py docker/requirements-runtime.txt docker/uvicorn-logging.json /opt/cuda-db/
 RUN python /opt/cuda-db/check_linkage.py && chmod 755 /opt/cuda-db/entrypoint.sh
 WORKDIR /opt/cuda-db
 USER 10001:10001

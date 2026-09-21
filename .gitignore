@@ -38,6 +38,18 @@ models/*.reference.npz
 models/*.manifest.json
 models/imagenet_classes.txt
 
+# Local credentials and TLS material
+secrets/
+**/secrets/
+**/.secrets/
+api_keys.json
+*.key
+*.pem
+*.crt
+*.cer
+*.p12
+*.pfx
+
 # Editor/OS
 .DS_Store
 .vscode/

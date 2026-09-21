@@ -503,7 +503,7 @@ async def test_late_native_failure_marks_server_unready_without_loop_warning(cli
 
             readiness = await client.get("/readyz")
             assert readiness.status_code == 503
-            assert "late engine failure" in readiness.json()["detail"]
+            assert readiness.json() == {"detail": "server is not ready"}
             await asyncio.sleep(0)
             assert loop_errors == []
     finally:

@@ -1,0 +1,100 @@
+name: cuda-db-deploy
+
+services:
+  inference:
+    image: "${CUDA_DB_IMAGE:-cuda-db:gpu-local}"
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      CUDA_DB_REQUIRE_GPU: "true"
+      CUDA_DB_REQUIRE_AUTH: "true"
+      CUDA_DB_API_KEYS_FILE: /run/secrets/api_keys.json
+      CUDA_DB_DEPLOYMENT_MODE: "true"
+      CUDA_DB_MODEL_PATH: /models/resnet50.onnx
+      CUDA_DB_MODEL_MANIFEST: /models/resnet50.manifest.json
+      CUDA_DB_MAX_BATCH_SIZE: "${CUDA_DB_MAX_BATCH_SIZE:-8}"
+      CUDA_DB_MAX_WAIT_MS: "${CUDA_DB_MAX_WAIT_MS:-5}"
+      CUDA_DB_MAX_INFLIGHT_REQUESTS: "${CUDA_DB_MAX_INFLIGHT_REQUESTS:-16}"
+      CUDA_DB_MAX_REQUEST_BYTES: "4194304"
+      CUDA_DB_REQUEST_TIMEOUT_MS: "30000"
+    volumes:
+      - type: bind
+        source: "${CUDA_DB_MODELS_DIR:-../models}"
+        target: /models
+        read_only: true
+        bind:
+          create_host_path: false
+    secrets:
+      - source: api_keys
+        target: api_keys.json
+    networks:
+      - backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  caddy:
+    image: caddy:2.11.4-alpine@sha256:de23def33b17fb5d1290b0f6c2add1d70780e52341896c00a4c8a2a2fe9d355e
+    user: "1000:1000"
+    environment:
+      CUDA_DB_HOSTNAME: "${CUDA_DB_HOSTNAME:?Set CUDA_DB_HOSTNAME to the public DNS name}"
+      CUDA_DB_TLS_EMAIL: "${CUDA_DB_TLS_EMAIL:?Set CUDA_DB_TLS_EMAIL to the ACME contact address}"
+    ports:
+      - "443:443/tcp"
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+      - backend
+    depends_on:
+      inference:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=32m,mode=1777
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 45s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+secrets:
+  api_keys:
+    file: "${CUDA_DB_API_KEYS_HOST_FILE:?Set CUDA_DB_API_KEYS_HOST_FILE to the absolute host key-store path}"
+
+networks:
+  edge: {}
+  backend:
+    internal: true
+
+volumes:
+  caddy_data: {}
+  caddy_config: {}

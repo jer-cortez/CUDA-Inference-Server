@@ -1,0 +1,80 @@
+{
+	admin off
+	persist_config off
+	auto_https disable_redirects
+	email {$CUDA_DB_TLS_EMAIL}
+
+	# Caddy access logging is intentionally not enabled. The application emits
+	# bounded structured audit records without URLs, query strings, headers, or
+	# bodies. Suppress request-associated proxy error records for the same reason.
+	log default {
+		format json
+		exclude http.log.access http.log.error
+	}
+
+	servers :443 {
+		protocols h1 h2
+		max_header_size 16KiB
+		# Permit an upstream 401 before an HTTP/1 client finishes uploading its
+		# body. Without full duplex, Go may drain the unauthenticated body first.
+		enable_full_duplex
+		timeouts {
+			read_body 30s
+			read_header 10s
+			write 40s
+			idle 2m
+		}
+		0rtt off
+	}
+}
+
+{$CUDA_DB_HOSTNAME} {
+	# The pilot intentionally exposes only TCP/443. Keep the TLS-ALPN challenge
+	# enabled and disable HTTP-01 so Caddy never needs a port-80 listener.
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+
+	@inference {
+		method POST
+		path /predict /predict/raw
+	}
+
+	handle @inference {
+		# This streaming limit does not pre-buffer the body. Authentication in the
+		# application still runs before its ASGI receive callable reads any bytes.
+		request_body {
+			max_size 4MiB
+		}
+
+		reverse_proxy inference:8000 {
+			# The application deliberately runs Uvicorn with --no-proxy-headers.
+			# Strip both standardized and de-facto client-address headers as defense
+			# in depth; no application authorization decision depends on them.
+			header_up -Forwarded
+			header_up -X-Forwarded-For
+			header_up -X-Forwarded-Host
+			header_up -X-Forwarded-Proto
+			header_up -X-Real-IP
+
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 35s
+			}
+		}
+	}
+
+	# Health, readiness, schema, documentation, and arbitrary application paths
+	# are private. Do not proxy them, even when a caller presents a valid key.
+	handle {
+		header Content-Type application/json
+		respond `{"detail":"not found"}` 404
+	}
+
+	handle_errors {
+		header Content-Type application/json
+		respond `{"detail":"request failed"}` {err.status_code}
+	}
+}
