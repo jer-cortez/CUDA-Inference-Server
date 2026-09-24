@@ -216,6 +216,8 @@ def main() -> None:
     args = parser.parse_args()
 
     data = load(args.input)
+    if any(run.get("workload") == "open_loop" for run in data["runs"]):
+        parser.error("these charts use concurrency as the x-axis; use report.py for scheduled-arrival results")
     theme = DARK if args.dark else LIGHT
     suffix = "_dark" if args.dark else ""
 

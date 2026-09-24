@@ -13,6 +13,9 @@ from contextlib import suppress
 
 import asyncio
 import logging
+import uuid
+import hashlib
+from pathlib import Path
 
 import numpy as np
 
@@ -39,6 +42,8 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.settings = settings
+        app.state.process_id = uuid.uuid4().hex
+        app.state.model_sha256 = None
         app.state.ready = False
         app.state.readiness_detail = "starting"
         runtime = None
@@ -66,6 +71,12 @@ def create_app(settings: RuntimeSettings | None = None) -> FastAPI:
             # constructing native state. A bad or missing store therefore
             # fails startup closed without briefly exposing inference.
             authenticator.load(settings.api_keys_file)
+            if settings.model_path and Path(settings.model_path).is_file():
+                digest = hashlib.sha256()
+                with open(settings.model_path, "rb") as model_file:
+                    for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                app.state.model_sha256 = digest.hexdigest()
             executor = make_executor(settings.executor_workers)
             app.state.executor = executor
             runtime = InferenceRuntime(

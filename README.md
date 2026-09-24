@@ -144,6 +144,9 @@ CUDA_DB_MODEL_PATH=models/resnet50.onnx CUDA_DB_MAX_INFLIGHT_REQUESTS=64 \
 
 ## Testing
 
+For the AWS candidate comparison, authenticated benchmark runner, lifecycle
+checks and cost report, see [AWS benchmarking](docs/aws-benchmarking.md).
+
 ```bash
 ./scripts/build.sh cpp                    # 17 tests, no GPU required
 python -m pytest tests/integration -q     # FastAPI end-to-end

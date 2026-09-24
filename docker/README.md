@@ -118,6 +118,31 @@ Run the reference check from the host development environment with NumPy:
 python docker/smoke_test.py --models models
 ```
 
+For the authenticated deployment, put the client token in a mode-0600 file and
+keep diagnostics off the public proxy. A JSON command file contains an argv
+prefix; the smoke tool appends `/readyz` or `/healthz`. For a check run directly
+on the GPU host, its contents can be:
+
+```json
+["python3", "docker/private_diagnostics.py"]
+```
+
+Then run:
+
+```sh
+python docker/smoke_test.py --models models \
+  --url https://inference.example.test \
+  --token-file /run/secrets/benchmark-client-token \
+  --ca-file /run/secrets/benchmark-ca.pem \
+  --diagnostics-command-file /run/secrets/diagnostics-command.json
+```
+
+TLS verification remains enabled with a private CA. The smoke test refuses to
+send a bearer token over HTTP and does not follow redirects. It also requires
+the private diagnostics response to identify the same model checksum as the
+local manifest and verifies that the serving process stays stable during the
+test.
+
 It checks readiness, ONNX identity, finite 1000-class output, matching top-1,
 maximum absolute logit error at most 0.01, and correct output mapping for eight
 distinct concurrent inputs with unique response IDs.
@@ -151,6 +176,32 @@ Additional release checks on the GPU host:
 4. Stop while requests are in flight, then restart and repeat readiness and
    smoke checks. Record signal/exit behavior and timings.
 5. Repeat with maximum batch sizes 1, 4, and 8 to establish model compatibility.
+
+Record host and GPU resource samples during each measured interval:
+
+```sh
+python benchmarks/resource_sampler.py --interval 1 --duration 120 \
+  --output benchmarks/results/resources.jsonl
+```
+
+Unavailable GPU fields are recorded as null with an error, rather than zero.
+Run the container lifecycle test on the GPU host after correctness succeeds:
+
+```sh
+python docker/lifecycle_test.py \
+  --url https://inference.example.test \
+  --models models \
+  --token-file /run/secrets/benchmark-client-token \
+  --ca-file /run/secrets/benchmark-ca.pem \
+  --diagnostics-command-file /run/secrets/diagnostics-command.json \
+  --output benchmarks/results/lifecycle.json
+```
+
+The lifecycle result records restart/readiness time, request outcomes during a
+stop, Docker exit/OOM state, and post-start reference validation. It fails the
+in-flight phase as inconclusive unless private diagnostics observes admitted
+work overlapping the stop. The output path must not already exist, which keeps
+previous evidence from being overwritten.
 
 ## Stop, recovery, and limitations
 

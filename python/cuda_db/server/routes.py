@@ -128,7 +128,24 @@ async def healthz(request: Request) -> dict:
     runtime = getattr(request.app.state, "runtime", None)
     if runtime is None:
         raise HTTPException(status_code=503, detail="server is not ready")
-    return {"status": "ok", **runtime.stats()}
+    settings = request.app.state.settings
+    # This route remains private in the deployment proxy. Use an explicit
+    # allowlist: serializing all settings would expose credential/model paths.
+    effective_config = {
+        name: getattr(settings, name)
+        for name in (
+            "max_batch_size", "max_wait_ms", "input_elems", "output_elems",
+            "executor_workers", "request_timeout_ms", "max_inflight_requests",
+            "max_request_bytes", "require_gpu", "auth_required", "deployment_mode",
+        )
+    }
+    return {
+        "status": "ok", **runtime.stats(),
+        "process_id": request.app.state.process_id,
+        "model_sha256": request.app.state.model_sha256,
+        "admission_inflight": request.app.state.admission.inflight,
+        "effective_config": effective_config,
+    }
 
 
 @router.get("/readyz")

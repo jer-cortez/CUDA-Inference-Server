@@ -44,7 +44,7 @@ modes and **understated** the batching win.
 
 **Warmup is discarded.** CUDA context creation, cuDNN algorithm selection, and
 ORT graph optimization all land on the first requests — hundreds of milliseconds
-that would otherwise dominate p99. Default 20 requests, thrown away before the
+that would otherwise dominate p99. Count mode defaults to 50 requests, thrown away before the
 clock starts. Server counters are also re-read after warmup, so reported batch
 statistics describe the measured phase only.
 
@@ -52,14 +52,15 @@ statistics describe the measured phase only.
 observation that actually happened rather than a synthesized value between two
 samples.
 
-**The run aborts rather than reporting a misleading number** when:
-- `/healthz` does not report `engine == "onnx"` — otherwise the stub engine is
-  being benchmarked, and it does no real work
-- dynamic mode never coalesced (`max_batch_size_seen <= 1`) — otherwise the two
-  "modes" are the same configuration compared against itself
+The run requires private diagnostics to report `engine == "onnx"`.
+`--allow-stub` bypasses this check for testing the harness itself; those numbers
+describe the harness, not inference. Observed batch size one is valid data at
+any concurrency and does not discard a measurement.
 
-`--allow-stub` bypasses both, for testing the harness itself. Numbers produced
-that way describe the harness, not inference.
+For authenticated HTTPS, time-bound runs, scheduled arrivals, p95, private
+diagnostics, resource sampling and cost reporting, follow the
+[AWS benchmarking runbook](aws-benchmarking.md). Historical results below
+predate that protocol and have not been remeasured by the new tools.
 
 ## Reading the results
 
